@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-Speed Pendulum Timer (0.2s Capable)</title>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #111; 
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        
+        h1 { margin: 0 0 10px 0; font-size: 28px; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px;}
+        
+        .container {
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.8);
+        }
+
+        #video-container {
+            position: relative;
+            margin: 20px auto;
+            border: 3px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            width: 640px;
+            height: 480px;
+            background: #000;
+        }
+
+        canvas { display: block; }
+        video { display: none; }
+
+        .time-box {
+            font-size: 24px;
+            margin-top: 15px;
+        }
+
+        .val { 
+            font-size: 48px; 
+            font-weight: bold; 
+            color: #ff3366; 
+            display: block;
+            margin-top: 10px;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #aaa;
+            text-align: left;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>High-Speed Pendulum Timer</h1>
+        
+        <div id="video-container">
+            <video id="webcam-video" width="640" height="480" autoplay playsinline></video>
+            <canvas id="tracking-canvas" width="640" height="480"></canvas>
+        </div>
+
+        <div class="time-box">
+            Time Period: <span class="val" id="timePeriod">-- s</span>
+        </div>
+
+        <div class="instructions">
+            <b>High-Speed Tracking Tips:</b><br>
+            1. Fast swings cause "motion blur". Ensure your room is VERY bright.<br>
+            2. High brightness forces the camera to use a faster shutter speed.<br>
+            3. Time filter lowered to detect anything over 0.100 seconds.
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam-video');
+        const canvas = document.getElementById('tracking-canvas');
+        const ctx = canvas.getContext('2d');
+        const timePeriodDisplay = document.getElementById('timePeriod');
+
+        let positionHistory = [];
+        let lastPeakTime = 0;
+
+        // --- 1. SETUP CAMERA (Forcing 60 FPS for fast tracking) ---
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640, 
+                        height: 480, 
+                        facingMode: "user",
+                        frameRate: { ideal: 60 } // UPGRADE: Tell the webcam to track faster
+                    } 
+                });
+                video.srcObject = stream;
+                return new Promise(resolve => {
+                    video.onloadedmetadata = () => resolve();
+                });
+            } catch (err) {
+                alert("Camera access denied or unavailable.");
+                console.error(err);
+            }
+        }
+
+        // --- 2. TRACKING LOGIC ---
+        function processVideoFrame() {
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+            ctx.restore();
+
+            const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = frame.data;
+
+            let sumX = 0, sumY = 0, count = 0;
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i], g = data[i + 1], b = data[i + 2];
+                
+                if (r > 150 && g < 90 && b < 90) {
+                    let pixelIndex = i / 4;
+                    sumX += pixelIndex % canvas.width;
+                    sumY += Math.floor(pixelIndex / canvas.width);
+                    count++;
+                }
+            }
+
+            if (count >= 3) { 
+                let centerX = sumX / count;
+                let centerY = sumY / count;
+
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
+                ctx.strokeStyle = '#00ffcc';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(centerX - 15, centerY);
+                ctx.lineTo(centerX + 15, centerY);
+                ctx.moveTo(centerX, centerY - 15);
+                ctx.lineTo(centerX, centerY + 15);
+                ctx.stroke();
+
+                // UPGRADE: Use performance.now() for high-precision microsecond timestamps
+                calculateTimePeriod(centerX, performance.now());
+            }
+
+            requestAnimationFrame(processVideoFrame);
+        }
+
+        // --- 3. PHYSICS MATH ---
+        function calculateTimePeriod(currentX, currentTime) {
+            positionHistory.push({ x: currentX, time: currentTime });
+            
+            if (positionHistory.length > 5) positionHistory.shift();
+
+            if (positionHistory.length >= 3) {
+                let p1 = positionHistory[positionHistory.length - 3].x;
+                let p2 = positionHistory[positionHistory.length - 2].x;
+                let p3 = positionHistory[positionHistory.length - 1].x;
+
+                // Detect peak
+                if (p2 > p1 && p2 > p3) {
+                    let peakTime = positionHistory[positionHistory.length - 2].time;
+                    
+                    if (lastPeakTime > 0) {
+                        let timeDiff = (peakTime - lastPeakTime) / 1000; 
+                        
+                        // UPGRADE: Lowered threshold from 0.5s down to 0.1s
+                        if (timeDiff > 0.1 && timeDiff < 5.0) {
+                            timePeriodDisplay.innerText = timeDiff.toFixed(3) + " s";
+                        }
+                    }
+                    lastPeakTime = peakTime;
+                }
+            }
+        }
+
+        // --- 4. START APP ---
+        setupCamera().then(() => {
+            video.play();
+            processVideoFrame(); 
+        });
+    </script>
+</body>
+</html>

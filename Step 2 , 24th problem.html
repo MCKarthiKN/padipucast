@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Pendulum + Spring SHM</title>
+<style>
+body{
+  font-family: Arial;
+  text-align:center;
+  background:linear-gradient(to right,#e6edf5,#cfd9e6);
+}
+.panel{
+  background:white;
+  padding:15px;
+  width:520px;
+  margin:15px auto;
+  border-radius:12px;
+  box-shadow:0 0 12px rgba(0,0,0,0.15);
+}
+canvas{
+  background:white;
+  border:2px solid #888;
+}
+input{
+  width:70px;
+  margin:6px;
+  padding:4px;
+}
+button{
+  padding:8px 14px;
+  margin:6px;
+  border:none;
+  border-radius:6px;
+  background:#4CAF50;
+  color:white;
+  cursor:pointer;
+}
+button:hover{ background:#45a049; }
+</style>
+</head>
+<body>
+
+<h1>Pendulum + Spring SHM Simulator</h1>
+
+<div class="panel">
+Length L: <input id="L" value="10">
+Gravity g: <input id="g" value="9.8">
+Spring k: <input id="k" value="20">
+Mass m: <input id="m" value="1"><br>
+
+<button onclick="startSim()">Start</button>
+<button onclick="stopSim()">Stop</button>
+<button onclick="resetSim()">Reset</button>
+<button onclick="slowMotion()">Slow Motion</button>
+<button onclick="normalMotion()">Normal Motion</button>
+
+<h2>Stopwatch: <span id="clock">0.00</span> s</h2>
+</div>
+
+<canvas id="c" width="900" height="520"></canvas>
+
+<script>
+let canvas=document.getElementById("c");
+let ctx=canvas.getContext("2d");
+
+let t=0, time=0;
+let running=false;
+let trail=[];
+let theta0=0.35;
+let omega=1;
+let speed=1;
+
+function getValues(){
+  let L=parseFloat(document.getElementById("L").value);
+  let g=parseFloat(document.getElementById("g").value);
+  let k=parseFloat(document.getElementById("k").value);
+  let m=parseFloat(document.getElementById("m").value);
+  return {L,g,k,m};
+}
+
+function updatePhysics(){
+  let {L,g,k,m}=getValues();
+  omega=Math.sqrt(g/L + k/m);
+}
+
+function startSim(){
+  updatePhysics();
+  running=true;
+}
+function stopSim(){
+  running=false;
+}
+function resetSim(){
+  running=false;
+  t=0;
+  time=0;
+  trail=[];
+  document.getElementById("clock").innerHTML="0.00";
+}
+function slowMotion(){ speed=0.25; }
+function normalMotion(){ speed=1; }
+
+function draw(){
+  ctx.clearRect(0,0,900,520);
+
+  if(running){
+    t+=0.03*speed;
+    time+=0.03*speed;
+    document.getElementById("clock").innerHTML=time.toFixed(2);
+  }
+
+  let {L}=getValues();
+  let Lpix=L*18;
+
+  let theta=theta0*Math.cos(omega*t);
+
+  let px=450, py=60;
+  let x=px + Lpix*Math.sin(theta);
+  let y=py + Lpix*Math.cos(theta);
+
+  trail.push({x,y});
+  if(trail.length>500) trail.shift();
+
+  // Trail
+  ctx.strokeStyle="purple";
+  ctx.beginPath();
+  trail.forEach((p,i)=>{
+    if(i===0) ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+  });
+  ctx.stroke();
+
+  // String
+  ctx.strokeStyle="blue";
+  ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.moveTo(px,py);
+  ctx.lineTo(x,y);
+  ctx.stroke();
+
+  // Pivot
+  ctx.fillStyle="black";
+  ctx.beginPath();
+  ctx.arc(px,py,6,0,2*Math.PI);
+  ctx.fill();
+
+  // Bob
+  ctx.fillStyle="red";
+  ctx.beginPath();
+  ctx.arc(x,y,14,0,2*Math.PI);
+  ctx.fill();
+
+  // Spring
+  ctx.strokeStyle="green";
+  ctx.lineWidth=2;
+  let wallX=780;
+  let coils=14;
+  let dx=(wallX-x)/coils;
+
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  for(let i=1;i<coils;i++){
+    let sx=x+i*dx;
+    let sy=y+(i%2==0?-10:10);
+    ctx.lineTo(sx,sy);
+  }
+  ctx.lineTo(wallX,y);
+  ctx.stroke();
+
+  // Wall
+  ctx.fillStyle="#8B4513";
+  ctx.fillRect(wallX,y-30,12,60);
+
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+
+</body>
+</html>

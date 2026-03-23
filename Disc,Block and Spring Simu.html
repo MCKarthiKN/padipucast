@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Numerical 3</title>
+    
+    <!-- Google Fonts for Aesthetic UI -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            color: #333;
+        }
+        canvas {
+            display: block;
+            outline: none;
+        }
+
+        /* Top Info Overlay */
+        #info {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            z-index: 1;
+        }
+        #info h2 {
+            margin: 0;
+            font-weight: 800;
+            font-size: 28px;
+            color: #111;
+            letter-spacing: -0.5px;
+        }
+
+        /* Glassmorphism UI Panel */
+        #ui-panel {
+            position: absolute;
+            top: 50%;
+            left: 30px;
+            transform: translateY(-50%);
+            width: 320px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(200, 200, 200, 0.5);
+            border-radius: 24px;
+            padding: 25px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        .ui-header {
+            font-weight: 800;
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .value-display {
+            color: #3b82f6;
+            font-weight: 800;
+        }
+
+        /* Stylish Range Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        /* Stopwatch Display */
+        .stopwatch-container {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 25px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+        .stopwatch-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #64748b;
+            margin-bottom: 5px;
+            font-weight: 800;
+        }
+        .stopwatch-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: -1px;
+        }
+
+        /* Blinking Animation for Stopwatch */
+        @keyframes blink-animation {
+            0%, 100% { opacity: 1; color: #0f172a; }
+            50% { opacity: 0.3; color: #ef4444; }
+        }
+        .blink .stopwatch-time {
+            animation: blink-animation 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .blink {
+            border-color: #fca5a5;
+            background-color: #fef2f2;
+        }
+
+        /* Action Buttons */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        button {
+            flex: 1;
+            padding: 12px 0;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        #btn-release { background: #10b981; } 
+        #btn-release:hover { background: #059669; }
+        
+        #btn-stop { background: #ef4444; } 
+        #btn-stop:hover { background: #dc2626; }
+        
+        #btn-reset { background: #64748b; } 
+        #btn-reset:hover { background: #475569; }
+
+        /* Slow Motion Toggle Button */
+        #btn-slowmo {
+            width: 100%;
+            margin-top: 10px;
+            background: #e2e8f0;
+            color: #475569;
+            box-shadow: none;
+        }
+        #btn-slowmo:hover { background: #cbd5e1; }
+        #btn-slowmo.active {
+            background: #f59e0b; /* Amber */
+            color: #ffffff;
+            box-shadow: 0 4px 6px rgba(245, 158, 11, 0.2);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <h2>Numerical 3</h2>
+    </div>
+
+    <!-- UI Dialogue Box -->
+    <div id="ui-panel">
+        <div class="ui-header">System Parameters</div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span>Spring Constant (k)</span>
+                <span class="value-display" id="val-k">50 N/m</span>
+            </div>
+            <input type="range" id="slider-k" min="10" max="200" step="1" value="50">
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span>Mass of Disc (M)</span>
+                <span class="value-display" id="val-M">10 kg</span>
+            </div>
+            <input type="range" id="slider-M" min="1" max="50" step="1" value="10">
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span>Mass of Block (m)</span>
+                <span class="value-display" id="val-m">5 kg</span>
+            </div>
+            <input type="range" id="slider-m" min="1" max="30" step="1" value="5">
+        </div>
+
+        <!-- Timer & Controls -->
+        <div class="stopwatch-container" id="stopwatch-box">
+            <div class="stopwatch-title">Elapsed Time</div>
+            <div class="stopwatch-time" id="time-display">00:00.00</div>
+        </div>
+        
+        <div class="btn-group">
+            <button id="btn-release">Release</button>
+            <button id="btn-stop">Stop</button>
+            <button id="btn-reset">Reset</button>
+        </div>
+        
+        <button id="btn-slowmo">Slow Motion: OFF</button>
+    </div>
+
+    <!-- Import maps polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ==========================================
+        // 1. Logic & State Setup
+        // ==========================================
+        let k = 50, M = 10, m = 5;
+        let omega = 0;
+        let timePeriod = 0;
+        
+        let isRunning = false;
+        let periodCompleted = false;
+        let isSlowMotion = false;
+        
+        let simTime = 0; 
+        let phase = 0; 
+        const amplitude = 2.5;
+
+        // DOM Elements
+        const sliderK = document.getElementById('slider-k');
+        const sliderM = document.getElementById('slider-M');
+        const sliderSmallM = document.getElementById('slider-m');
+        const timeDisplay = document.getElementById('time-display');
+        const stopwatchBox = document.getElementById('stopwatch-box');
+        const btnSlowMo = document.getElementById('btn-slowmo');
+
+        function updatePhysicsParams() {
+            k = parseFloat(sliderK.value);
+            M = parseFloat(sliderM.value);
+            m = parseFloat(sliderSmallM.value);
+            
+            document.getElementById('val-k').innerText = `${k} N/m`;
+            document.getElementById('val-M').innerText = `${M} kg`;
+            document.getElementById('val-m').innerText = `${m} kg`;
+
+            const effectiveMass = m + (M / 2);
+            omega = Math.sqrt(k / effectiveMass);
+            timePeriod = (2 * Math.PI) / omega;
+        }
+
+        function resetSimulation() {
+            isRunning = false;
+            periodCompleted = false;
+            simTime = 0;
+            phase = 0; 
+            stopwatchBox.classList.remove('blink');
+            updateTimerDisplay(0);
+        }
+
+        // Setup Buttons
+        document.getElementById('btn-release').addEventListener('click', () => { 
+            if (periodCompleted) {
+                resetSimulation();
+            }
+            stopwatchBox.classList.remove('blink');
+            isRunning = true; 
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => { 
+            isRunning = false; 
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            resetSimulation();
+        });
+
+        // Slow Motion Toggle
+        btnSlowMo.addEventListener('click', () => {
+            isSlowMotion = !isSlowMotion;
+            if (isSlowMotion) {
+                btnSlowMo.innerText = 'Slow Motion: ON';
+                btnSlowMo.classList.add('active');
+            } else {
+                btnSlowMo.innerText = 'Slow Motion: OFF';
+                btnSlowMo.classList.remove('active');
+            }
+        });
+
+        // Sliders
+        sliderK.addEventListener('input', () => { updatePhysicsParams(); resetSimulation(); });
+        sliderM.addEventListener('input', () => { updatePhysicsParams(); resetSimulation(); });
+        sliderSmallM.addEventListener('input', () => { updatePhysicsParams(); resetSimulation(); });
+        
+        updatePhysicsParams();
+
+        function updateTimerDisplay(timeInSeconds) {
+            const mins = Math.floor(timeInSeconds / 60).toString().padStart(2, '0');
+            const secs = Math.floor(timeInSeconds % 60).toString().padStart(2, '0');
+            const ms = Math.floor((timeInSeconds * 100) % 100).toString().padStart(2, '0');
+            timeDisplay.innerText = `${mins}:${secs}.${ms}`;
+        }
+
+        // ==========================================
+        // 2. Scene & Camera Setup
+        // ==========================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 5, 32); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.NoToneMapping; 
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(3, 3, 0);
+
+        // ==========================================
+        // 3. Clean Studio Lighting Setup
+        // ==========================================
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        mainLight.position.set(5, 20, 15);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        scene.add(mainLight);
+
+        // ==========================================
+        // 4. The Disc (Pulley) - Mass M
+        // ==========================================
+        const discRadius = 3;
+        const discCenterY = 3;
+        
+        const discGroup = new THREE.Group();
+        discGroup.position.set(0, discCenterY, 0);
+        scene.add(discGroup);
+
+        const discGeometry = new THREE.CylinderGeometry(discRadius, discRadius, 0.8, 64);
+        discGeometry.rotateX(Math.PI / 2);
+        const discMaterial = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.2, metalness: 0.2 });
+        const disc = new THREE.Mesh(discGeometry, discMaterial);
+        disc.castShadow = true;
+        disc.receiveShadow = true;
+        discGroup.add(disc);
+
+        const ringGeom = new THREE.TorusGeometry(discRadius * 0.7, 0.1, 16, 64);
+        const ringMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.3 });
+        const ring = new THREE.Mesh(ringGeom, ringMat);
+        ring.position.z = 0.4;
+        discGroup.add(ring);
+
+        const spokeGeom = new THREE.BoxGeometry(discRadius * 1.8, 0.1, 0.85);
+        const spoke1 = new THREE.Mesh(spokeGeom, ringMat);
+        const spoke2 = new THREE.Mesh(spokeGeom, ringMat);
+        spoke2.rotation.z = Math.PI / 2;
+        discGroup.add(spoke1);
+        discGroup.add(spoke2);
+
+        const axleGeom = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 32);
+        axleGeom.rotateX(Math.PI / 2);
+        const axle = new THREE.Mesh(axleGeom, new THREE.MeshStandardMaterial({ color: 0x475569 }));
+        axle.castShadow = true;
+        discGroup.add(axle);
+
+        const mount = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshStandardMaterial({ color: 0x94a3b8 }));
+        mount.position.set(0, discCenterY, -1.2);
+        mount.receiveShadow = true;
+        mount.castShadow = true;
+        scene.add(mount);
+
+        const bgGeometry = new THREE.PlaneGeometry(200, 200);
+        const bgMaterial = new THREE.ShadowMaterial({ opacity: 0.15 }); 
+        const bg = new THREE.Mesh(bgGeometry, bgMaterial);
+        bg.position.z = -3;
+        bg.receiveShadow = true;
+        scene.add(bg);
+
+        // ==========================================
+        // 5. Initial Level Dotted Line
+        // ==========================================
+        const massEqY = -2.5;
+        // The block starts exactly at amplitude height above its equilibrium
+        const initialYPos = massEqY + amplitude; 
+
+        // Draw a dotted line from left of the block extending inwards
+        const initialLevelGeom = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-discRadius - 4, initialYPos, -0.5),
+            new THREE.Vector3(-0.5, initialYPos, -0.5)
+        ]);
+        const initialLevelMat = new THREE.LineDashedMaterial({
+            color: 0x94a3b8,
+            dashSize: 0.3,
+            gapSize: 0.2,
+            linewidth: 2
+        });
+        const initialLevelLine = new THREE.Line(initialLevelGeom, initialLevelMat);
+        initialLevelLine.computeLineDistances(); // Crucial to make dashes render!
+        scene.add(initialLevelLine);
+
+        // ==========================================
+        // 6. The Hanging Block (Mass m)
+        // ==========================================
+        const massSize = 1.6;
+        const massGeometry = new THREE.BoxGeometry(massSize, massSize, massSize);
+        const massMaterial = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 });
+        const block = new THREE.Mesh(massGeometry, massMaterial);
+        block.castShadow = true;
+        block.receiveShadow = true;
+        scene.add(block);
+
+        // ==========================================
+        // 7. Right Side Wall
+        // ==========================================
+        const wallXPos = 12;
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(1.5, 14, 4), new THREE.MeshStandardMaterial({ color: 0xcbd5e1 }));
+        wall.position.set(wallXPos, discCenterY, 0);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+
+        const hookGeom = new THREE.CylinderGeometry(0.15, 0.15, 0.8);
+        hookGeom.rotateZ(Math.PI / 2);
+        const hook = new THREE.Mesh(hookGeom, new THREE.MeshStandardMaterial({ color: 0x475569 }));
+        hook.position.set(wallXPos - 0.75, discCenterY + discRadius, 0);
+        scene.add(hook);
+
+        // ==========================================
+        // 8. Dynamic Spring Geometry
+        // ==========================================
+        const springSegments = 250;
+        const springCoils = 16;
+        const springRadius = 0.4;
+        
+        const springGeometry = new THREE.BufferGeometry();
+        const springPositions = new Float32Array((springSegments + 1) * 3);
+        springGeometry.setAttribute('position', new THREE.BufferAttribute(springPositions, 3));
+        const springMaterial = new THREE.LineBasicMaterial({ color: 0x3b82f6, linewidth: 3 });
+        const spring = new THREE.Line(springGeometry, springMaterial);
+        scene.add(spring);
+
+        // ==========================================
+        // 9. Thread Geometry
+        // ==========================================
+        const threadGeometry = new THREE.BufferGeometry();
+        const threadPositions = new Float32Array(100 * 3);
+        threadGeometry.setAttribute('position', new THREE.BufferAttribute(threadPositions, 3));
+        const threadMaterial = new THREE.LineBasicMaterial({ color: 0x0f172a, linewidth: 2 });
+        const thread = new THREE.Line(threadGeometry, threadMaterial);
+        scene.add(thread);
+
+        // ==========================================
+        // 10. Animation & Geometry Update Loop
+        // ==========================================
+        const clock = new THREE.Clock();
+        const springEqX = 5.0;
+        const topTangentY = discCenterY + discRadius;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let delta = clock.getDelta();
+
+            // Apply Slow Motion multiplier (4x slower)
+            if (isSlowMotion) {
+                delta *= 0.25;
+            }
+
+            // Physics Timestep Updates
+            if (isRunning && !periodCompleted) {
+                simTime += delta;
+                phase += omega * delta;
+
+                // Stop exactly when 1 Time Period is reached (Phase reaches 2 * PI)
+                if (simTime >= timePeriod) {
+                    simTime = timePeriod;
+                    phase = 2 * Math.PI; // Snap perfectly to full cycle
+                    isRunning = false;
+                    periodCompleted = true;
+                    
+                    stopwatchBox.classList.add('blink');
+                }
+                
+                updateTimerDisplay(simTime);
+            }
+
+            // Negative COSINE ensures we start at the top (unstretched) and fall downwards
+            const S = -amplitude * Math.cos(phase);
+
+            // Update Block Position
+            const currentMassY = massEqY - S;
+            block.position.set(-discRadius, currentMassY, 0);
+            
+            // Update Disc Rotation
+            discGroup.rotation.z = S / discRadius;
+
+            // Update Spring and Thread Geometries
+            const currentSpringX = springEqX - S;
+            updateSpring(currentSpringX, wallXPos - 0.75, topTangentY);
+            updateThread(currentMassY + massSize / 2, currentSpringX);
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function updateSpring(startX, endX, yPos) {
+            const length = endX - startX;
+            const points = springGeometry.attributes.position.array;
+            
+            for (let i = 0; i <= springSegments; i++) {
+                const t = i / springSegments;
+                const x = startX + t * length;
+                
+                let radiusFactor = 1;
+                if (t < 0.05) radiusFactor = t / 0.05;
+                if (t > 0.95) radiusFactor = (1 - t) / 0.05;
+
+                const angle = t * Math.PI * 2 * springCoils;
+                points[i * 3] = x;
+                points[i * 3 + 1] = yPos + Math.sin(angle) * springRadius * radiusFactor;
+                points[i * 3 + 2] = Math.cos(angle) * springRadius * radiusFactor;
+            }
+            springGeometry.attributes.position.needsUpdate = true;
+        }
+
+        function updateThread(massAttachY, springAttachX) {
+            const points = threadGeometry.attributes.position.array;
+            let idx = 0;
+
+            points[idx++] = -discRadius; points[idx++] = massAttachY; points[idx++] = 0;
+            points[idx++] = -discRadius; points[idx++] = discCenterY; points[idx++] = 0;
+
+            const arcSegments = 24;
+            for (let i = 1; i < arcSegments; i++) {
+                const t = i / arcSegments;
+                const angle = Math.PI - t * (Math.PI / 2); 
+                points[idx++] = discRadius * Math.cos(angle);
+                points[idx++] = discCenterY + discRadius * Math.sin(angle);
+                points[idx++] = 0.02; 
+            }
+
+            points[idx++] = 0; points[idx++] = topTangentY; points[idx++] = 0.02;
+            points[idx++] = springAttachX; points[idx++] = topTangentY; points[idx++] = 0;
+
+            threadGeometry.setDrawRange(0, idx / 3);
+            threadGeometry.attributes.position.needsUpdate = true;
+        }
+
+        // ==========================================
+        // 11. Handle Resize
+        // ==========================================
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize display and start graphic loop
+        updateTimerDisplay(0);
+        animate();
+    </script>
+</body>
+</html>
