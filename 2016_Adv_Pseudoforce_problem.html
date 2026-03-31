@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Kinematics Diagram</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #CBD5E1; /* Premium Slate Grey background */
+            font-family: 'Inter', sans-serif;
+            color: #2D3436;
+            -webkit-user-select: none;
+            user-select: none; 
+        }
+
+        /* --- Textural Overlays for Separation --- */
+        .vignette-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; z-index: 40;
+            background: radial-gradient(circle at center, rgba(0,0,0,0) 40%, rgba(15, 23, 42, 0.18) 100%);
+        }
+
+        .noise-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; z-index: 50; opacity: 0.08;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        }
+
+        /* Warm Glassmorphism UI Panel */
+        #ui-panel {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            padding: 20px 25px;
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+            width: 320px;
+            pointer-events: auto;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        #ui-header {
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; border-bottom: 2px solid #E8E4D9;
+            padding-bottom: 12px; margin-bottom: 15px;
+        }
+        
+        h1 { margin: 0; font-size: 18px; font-weight: 600; color: #2D3436; }
+
+        #toggle-icon { font-size: 24px; font-weight: 400; color: #B2BEC3; width: 24px; text-align: right; }
+
+        #ui-content {
+            max-height: 500px; opacity: 1; overflow: hidden;
+            transition: max-height 0.4s ease, opacity 0.3s ease;
+        }
+
+        #ui-content.collapsed { max-height: 0; opacity: 0; pointer-events: none; }
+
+        .control-group { margin-bottom: 18px; }
+        .control-group label {
+            display: flex; justify-content: space-between;
+            font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #636E72;
+        }
+
+        /* Custom Sliders */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px;
+            border-radius: 50%; background: #FF6B6B;
+            cursor: pointer; margin-top: -6px;
+            box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer;
+            background: #94A3B8; border-radius: 2px;
+        }
+
+        /* Control Button */
+        #playBtn {
+            width: 100%; padding: 14px; margin-top: 5px;
+            background: #2D3436; color: #FFFFFF;
+            border: none; border-radius: 10px;
+            font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px;
+            cursor: pointer; transition: all 0.2s ease;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+            box-shadow: 0 4px 12px rgba(45, 52, 54, 0.2);
+        }
+        #playBtn:hover { background: #404A4D; transform: translateY(-1px); }
+        #playBtn:active { transform: translateY(1px); }
+        #playBtn.paused { background: #FF6B6B; box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3); }
+
+        /* Integrated Stopwatch */
+        #stopwatch-container {
+            margin-top: 20px; padding-top: 15px; border-top: 2px solid #E8E4D9; text-align: center;
+        }
+        .stopwatch-label {
+            font-size: 11px; color: #B2BEC3; margin-bottom: 2px; 
+            text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;
+        }
+        #timer {
+            font-family: 'JetBrains Mono', monospace; font-size: 34px; color: #2D3436; transition: color 0.3s;
+        }
+
+        .blink { animation: flash 0.5s infinite alternate; color: #FF6B6B !important; }
+
+        @keyframes flash { from { opacity: 1; } to { opacity: 0.3; } }
+
+        @media (max-width: 600px) {
+            #ui-panel { top: auto; bottom: 20px; left: 15px; right: 15px; width: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Tactile Overlays -->
+    <div class="vignette-overlay"></div>
+    <div class="noise-overlay"></div>
+
+    <div id="ui-panel">
+        <div id="ui-header">
+            <h1>Diagram Parameters</h1>
+            <div id="toggle-icon">−</div>
+        </div>
+        
+        <div id="ui-content">
+            <div class="control-group">
+                <label>Angular Speed (ω) <span id="valOmega">1.2 rad/s</span></label>
+                <input type="range" id="sliderOmega" min="0.2" max="3.0" step="0.1" value="1.2">
+            </div>
+            <div class="control-group">
+                <label>Disc Radius (R) <span id="valR">10.0</span></label>
+                <input type="range" id="sliderR" min="6" max="18" step="0.5" value="10">
+            </div>
+            <div class="control-group">
+                <label>Initial Position (r₀) <span id="valR0">5.0</span></label>
+                <input type="range" id="sliderR0" min="0.5" max="9.5" step="0.1" value="5">
+            </div>
+
+            <button id="playBtn">⏸ Pause Rotation</button>
+
+            <div id="stopwatch-container">
+                <div class="stopwatch-label">Stopwatch</div>
+                <div id="timer">0.00 s</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- UI Logic ---
+        const uiHeader = document.getElementById('ui-header');
+        const uiContent = document.getElementById('ui-content');
+        const toggleIcon = document.getElementById('toggle-icon');
+
+        uiHeader.addEventListener('click', () => {
+            uiContent.classList.toggle('collapsed');
+            toggleIcon.innerText = uiContent.classList.contains('collapsed') ? '+' : '−';
+            uiHeader.style.borderBottom = uiContent.classList.contains('collapsed') ? 'none' : '2px solid #E8E4D9';
+            uiHeader.style.paddingBottom = uiContent.classList.contains('collapsed') ? '0' : '12px';
+            uiHeader.style.marginBottom = uiContent.classList.contains('collapsed') ? '0' : '15px';
+        });
+
+        // DOM Elements
+        const sliderOmega = document.getElementById('sliderOmega');
+        const sliderR = document.getElementById('sliderR');
+        const sliderR0 = document.getElementById('sliderR0');
+        const valOmega = document.getElementById('valOmega');
+        const valR = document.getElementById('valR');
+        const valR0 = document.getElementById('valR0');
+        const timerEl = document.getElementById('timer');
+        const playBtn = document.getElementById('playBtn');
+
+        // Physics Variables
+        let omega = parseFloat(sliderOmega.value);
+        let R = parseFloat(sliderR.value);
+        let r0 = parseFloat(sliderR0.value);
+        let isPaused = false;
+        
+        // Geometric Constants
+        const slotWidth = 2.0;
+        const topThickness = 0.6;
+        const baseThickness = 0.4;
+        const blockWidth = 1.6;
+
+        let simTime = 0;
+        let animState = 'MOVING'; 
+        let popTimer = 0;
+
+        // Button Control
+        playBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            if (isPaused) {
+                playBtn.innerHTML = '▶ Resume Rotation';
+                playBtn.classList.add('paused');
+            } else {
+                playBtn.innerHTML = '⏸ Pause Rotation';
+                playBtn.classList.remove('paused');
+            }
+        });
+
+        // --- Scene Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#CBD5E1'); // Grey Background
+        scene.fog = new THREE.FogExp2('#CBD5E1', 0.015);
+
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(15, 22, 28);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- Lighting ---
+        scene.add(new THREE.AmbientLight('#FFFFFF', 0.8));
+        
+        const dirLight = new THREE.DirectionalLight('#FFFFFF', 1.2);
+        dirLight.position.set(15, 30, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.bias = -0.0005;
+        scene.add(dirLight);
+
+        // Cooler soft light to match grey backdrop
+        const softLight = new THREE.DirectionalLight('#F8FAFC', 0.4);
+        softLight.position.set(-15, 20, -10);
+        scene.add(softLight);
+
+        // --- Dynamic Dot-Grid Floor Canvas ---
+        // Creates a beautiful architectural graph-paper floor to anchor the scene
+        const dotCanvas = document.createElement('canvas');
+        dotCanvas.width = 128; dotCanvas.height = 128;
+        const ctx = dotCanvas.getContext('2d');
+        ctx.fillStyle = '#CBD5E1'; // Exact grey background match
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.fillStyle = '#94A3B8'; // Subtle darker grey dot contrast
+        ctx.beginPath();
+        ctx.arc(64, 64, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        const floorTex = new THREE.CanvasTexture(dotCanvas);
+        floorTex.wrapS = THREE.RepeatWrapping;
+        floorTex.wrapT = THREE.RepeatWrapping;
+        floorTex.repeat.set(60, 60);
+
+        const floorGeo = new THREE.PlaneGeometry(300, 300);
+        const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, depthWrite: false, roughness: 1 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -baseThickness;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // --- Materials ---
+        const discMat = new THREE.MeshStandardMaterial({ color: '#FFFDF9', roughness: 0.2, metalness: 0.05 });
+        const slotFloorMat = new THREE.MeshStandardMaterial({ color: '#E8E4D9', roughness: 0.5 });
+        const blockMat = new THREE.MeshStandardMaterial({ color: '#FF6B6B', roughness: 0.1, metalness: 0.1 });
+        const axisMat = new THREE.LineBasicMaterial({ color: '#2D3436', linewidth: 3 });
+
+        // --- Scene Groups ---
+        const systemGroup = new THREE.Group();
+        scene.add(systemGroup);
+        const discGroup = new THREE.Group();
+        systemGroup.add(discGroup);
+
+        // --- Block & Label ---
+        const blockGeo = new THREE.BoxGeometry(blockWidth, topThickness * 0.95, slotWidth * 0.9);
+        const block = new THREE.Mesh(blockGeo, blockMat);
+        block.castShadow = true;
+        block.position.y = (topThickness * 0.95) / 2;
+        systemGroup.add(block);
+
+        function createTextSprite(text, size = 48, color = '#FFFFFF', bold = true) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = color;
+            ctx.font = `${bold ? 'bold ' : ''}${size}px sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 64);
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+            return new THREE.Sprite(spriteMat);
+        }
+
+        const mLabel = createTextSprite('m', 72, '#FFFFFF', true);
+        mLabel.scale.set(1.5, 0.75, 1);
+        mLabel.position.y = (topThickness / 2) + 0.3;
+        block.add(mLabel);
+
+        // Central Rotation Axis
+        const axisGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, -2, 0), new THREE.Vector3(0, 8, 0)
+        ]);
+        const axisLine = new THREE.Line(axisGeo, axisMat);
+        systemGroup.add(axisLine);
+        
+        // Arrow for Omega
+        const arrowGroup = new THREE.Group();
+        arrowGroup.position.set(0, 7, 0);
+        
+        const arrowPath = new THREE.TorusGeometry(1.2, 0.05, 8, 32, Math.PI * 1.3);
+        const arrowMesh = new THREE.Mesh(arrowPath, new THREE.MeshBasicMaterial({ color: '#2D3436' }));
+        arrowMesh.rotation.x = Math.PI / 2;
+        arrowGroup.add(arrowMesh);
+
+        const arrowHead = new THREE.ConeGeometry(0.25, 0.6, 16);
+        const arrowHeadMesh = new THREE.Mesh(arrowHead, new THREE.MeshBasicMaterial({ color: '#2D3436' }));
+        const endAngle = Math.PI * 1.3;
+        arrowHeadMesh.position.set(1.2 * Math.cos(endAngle), 0, -1.2 * Math.sin(endAngle));
+        arrowHeadMesh.rotation.y = -endAngle + Math.PI; 
+        arrowHeadMesh.rotation.z = -Math.PI / 2;
+        arrowGroup.add(arrowHeadMesh);
+        
+        const omegaLabel = createTextSprite('ω', 64, '#2D3436', true);
+        omegaLabel.scale.set(2, 1, 1);
+        omegaLabel.position.set(1.6, 0.5, -1.0);
+        arrowGroup.add(omegaLabel);
+        
+        systemGroup.add(arrowGroup);
+
+        // --- Construct Solid Disc Geometry ---
+        function rebuildGeometry() {
+            while(discGroup.children.length > 0) {
+                const child = discGroup.children[0];
+                discGroup.remove(child);
+                if(child.geometry) child.geometry.dispose();
+            }
+
+            const baseGeo = new THREE.CylinderGeometry(R, R, baseThickness, 64);
+            const baseMesh = new THREE.Mesh(baseGeo, slotFloorMat);
+            baseMesh.position.y = -baseThickness / 2;
+            baseMesh.receiveShadow = true;
+            discGroup.add(baseMesh);
+
+            const alpha = Math.asin((slotWidth / 2) / R);
+            const extrudeSettings = { depth: topThickness, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.06, bevelThickness: 0.06 };
+
+            const shapeTop = new THREE.Shape();
+            shapeTop.absarc(0, 0, R, alpha, Math.PI - alpha, false);
+            shapeTop.lineTo(-R * Math.cos(alpha), slotWidth / 2);
+            shapeTop.lineTo(R * Math.cos(alpha), slotWidth / 2);
+
+            const shapeBot = new THREE.Shape();
+            shapeBot.absarc(0, 0, R, Math.PI + alpha, Math.PI * 2 - alpha, false);
+            shapeBot.lineTo(R * Math.cos(alpha), -slotWidth / 2);
+            shapeBot.lineTo(-R * Math.cos(alpha), -slotWidth / 2);
+
+            const geomTop = new THREE.ExtrudeGeometry(shapeTop, extrudeSettings);
+            const geomBot = new THREE.ExtrudeGeometry(shapeBot, extrudeSettings);
+
+            geomTop.rotateX(-Math.PI / 2);
+            geomBot.rotateX(-Math.PI / 2);
+
+            const meshTop = new THREE.Mesh(geomTop, discMat);
+            const meshBot = new THREE.Mesh(geomBot, discMat);
+            meshTop.castShadow = true; meshTop.receiveShadow = true;
+            meshBot.castShadow = true; meshBot.receiveShadow = true;
+            
+            discGroup.add(meshTop);
+            discGroup.add(meshBot);
+
+            const dashMat = new THREE.LineDashedMaterial({ color: '#2D3436', dashSize: 0.3, gapSize: 0.2, linewidth: 2 });
+            
+            const rPoints =[new THREE.Vector3(0, topThickness + 0.1, 0), new THREE.Vector3(R * Math.cos(Math.PI/6), topThickness + 0.1, -R * Math.sin(Math.PI/6))];
+            const rLineGeo = new THREE.BufferGeometry().setFromPoints(rPoints);
+            const rLine = new THREE.Line(rLineGeo, dashMat);
+            rLine.computeLineDistances();
+            discGroup.add(rLine);
+            
+            const rLabel = createTextSprite('R', 56, '#2D3436', true);
+            rLabel.scale.set(2, 1, 1);
+            rLabel.position.set((R/2) * Math.cos(Math.PI/6) + 0.5, topThickness + 0.6, -(R/2) * Math.sin(Math.PI/6) - 0.5);
+            discGroup.add(rLabel);
+
+            const r0Points =[new THREE.Vector3(0, 0.1, slotWidth/2 + 0.5), new THREE.Vector3(r0, 0.1, slotWidth/2 + 0.5)];
+            const r0LineGeo = new THREE.BufferGeometry().setFromPoints(r0Points);
+            const r0Line = new THREE.Line(r0LineGeo, dashMat);
+            r0Line.computeLineDistances();
+            discGroup.add(r0Line);
+
+            const r0Label = createTextSprite(`r₀ (${r0.toFixed(1)})`, 48, '#2D3436', true);
+            r0Label.scale.set(3, 1.5, 1);
+            r0Label.position.set(r0 / 2, 0.1, slotWidth/2 + 1.2);
+            discGroup.add(r0Label);
+        }
+
+        function resetSimulation() {
+            animState = 'MOVING';
+            simTime = 0; popTimer = 0;
+            block.scale.set(1, 1, 1);
+            block.position.x = r0;
+            timerEl.classList.remove('blink');
+            timerEl.innerText = '0.00 s';
+        }
+
+        // --- Input Event Listeners ---
+        sliderOmega.addEventListener('input', (e) => {
+            omega = parseFloat(e.target.value);
+            valOmega.innerText = omega.toFixed(1) + ' rad/s';
+            resetSimulation();
+        });
+
+        sliderR.addEventListener('input', (e) => {
+            R = parseFloat(e.target.value);
+            valR.innerText = R.toFixed(1);
+            sliderR0.max = (R - blockWidth/2).toFixed(1);
+            if (r0 > R - blockWidth/2) {
+                r0 = R - blockWidth/2;
+                sliderR0.value = r0;
+                valR0.innerText = r0.toFixed(1);
+            }
+            rebuildGeometry(); resetSimulation();
+        });
+
+        sliderR0.addEventListener('input', (e) => {
+            r0 = parseFloat(e.target.value);
+            valR0.innerText = r0.toFixed(1);
+            rebuildGeometry(); 
+            resetSimulation();
+        });
+
+        rebuildGeometry();
+        resetSimulation();
+
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+
+            // Only process physics if NOT paused
+            if (!isPaused) {
+                systemGroup.rotation.y += omega * dt;
+
+                if (animState === 'MOVING') {
+                    simTime += dt;
+                    
+                    let x = r0 * Math.cosh(omega * simTime);
+                    const limit = R; // Stops exactly when half-outside
+
+                    if (x >= limit) {
+                        x = limit;
+                        animState = 'POPPING';
+                        popTimer = 0;
+                        timerEl.classList.add('blink'); 
+                    } else {
+                        timerEl.innerText = simTime.toFixed(2) + ' s';
+                    }
+
+                    block.position.x = x;
+
+                } else if (animState === 'POPPING') {
+                    popTimer += dt;
+                    
+                    if (popTimer < 0.15) {
+                        let progress = popTimer / 0.15;
+                        let s = 1.0 + 0.4 * Math.sin(progress * Math.PI / 2);
+                        block.scale.set(s, s, s);
+                    } 
+                    else if (popTimer < 0.4) {
+                        let progress = (popTimer - 0.15) / 0.25;
+                        let s = 1.4 * Math.cos(progress * Math.PI / 2);
+                        block.scale.set(s, s, s);
+                    } 
+                    else if (popTimer < 2.5) {
+                        block.scale.set(0, 0, 0);
+                    } 
+                    else {
+                        resetSimulation();
+                    }
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
