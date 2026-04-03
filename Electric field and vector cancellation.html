@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Definitive Line Charge & Ring Physics</title>
+    
+    <style>
+        @import url('https://fonts.cdnfonts.com/css/lemon-milk');
+
+        :root {
+            --bg-color: rgba(10, 10, 10, 0.85);
+            --accent: #ffffff;
+        }
+
+        body {
+            font-family: 'LEMON MILK', sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            margin: 0;
+            overflow: hidden; 
+            touch-action: none; 
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 2;
+            pointer-events: none; 
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .header {
+            padding: 20px 10px 0;
+            text-align: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+        }
+        
+        h1 { 
+            margin: 0; font-size: 20px; letter-spacing: 2px; 
+            text-shadow: 0 4px 10px #000; font-weight: normal;
+        }
+
+        .ui-panel {
+            background: var(--bg-color);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 20px;
+            pointer-events: auto; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-height: 55vh;
+            overflow-y: auto;
+        }
+
+        .controls-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+            width: 100%; max-width: 800px; margin-bottom: 20px;
+        }
+
+        .control-group { display: flex; flex-direction: column; transition: 0.3s; }
+        
+        label { margin-bottom: 8px; color: var(--accent); font-size: 10px; letter-spacing: 1px;}
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--accent); }
+
+        .btn-row { display: flex; gap: 10px; width: 100%; max-width: 800px; flex-wrap: wrap; justify-content: center;}
+
+        button {
+            flex: 1; min-width: 110px; padding: 12px; border: none; border-radius: 4px;
+            font-family: 'LEMON MILK', sans-serif; font-size: 10px; 
+            cursor: pointer; letter-spacing: 1px; transition: 0.2s;
+        }
+        .btn-mode { background-color: #00e6e6; color: #000; }
+        .btn-mode:active { background-color: #00b3b3; }
+        .btn-sign { background-color: #ff3333; color: #fff; }
+        .btn-sign.negative { background-color: #3333ff; }
+        .btn-all { background-color: #ffffff; color: #000; }
+        .btn-all:active { background-color: #cccccc; }
+        .btn-clear { background-color: transparent; color: white; border: 1px solid #555; }
+        .btn-clear:active { background-color: rgba(255,255,255,0.1); }
+
+        /* Hidden states */
+        .dimmed { opacity: 0.3; pointer-events: none; }
+        .hidden { display: none !important; }
+
+        @media (min-width: 768px) {
+            h1 { font-size: 26px; }
+            .ui-panel { border-radius: 12px 12px 0 0; border: 1px solid rgba(255,255,255,0.05); border-bottom: none;}
+            .controls-grid { grid-template-columns: repeat(5, 1fr); }
+            .btn-row { flex-wrap: nowrap; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <div class="header">
+            <h1>ELECTRIC FIELD & PARALLELOGRAM LAW</h1>
+        </div>
+
+        <div class="ui-panel">
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label id="label-N">CHARGES : 4</label>
+                    <input type="range" id="slider-N" min="2" max="16" value="4" step="1">
+                </div>
+                <div class="control-group">
+                    <label id="label-D">RADIUS (d) : 15</label>
+                    <input type="range" id="slider-D" min="8" max="25" value="15" step="1">
+                </div>
+                <div class="control-group">
+                    <label id="label-S">SCALE : 1000</label>
+                    <input type="range" id="slider-S" min="300" max="2000" value="1000" step="10">
+                </div>
+                <div class="control-group" id="group-bend">
+                    <label id="label-B">BEND : 0%</label>
+                    <input type="range" id="slider-B" min="-100" max="100" value="0" step="1">
+                </div>
+                <div class="control-group dimmed" id="group-z">
+                    <label id="label-Z">Z-AXIS : 0</label>
+                    <input type="range" id="slider-Z" min="-30" max="30" value="0" step="1">
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-mode" id="btn-mode">MODE: FINITE</button>
+                <button class="btn-sign" id="btn-sign">CHARGE: POS (+)</button>
+                <button class="btn-all" id="btn-all">SELECT ALL</button>
+                <button class="btn-clear" id="btn-clear">CLEAR</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
+
+        // Irodov Slender Arrow Class
+        class SlenderArrow extends THREE.Group {
+            constructor(colorHex, thicknessMultiplier = 1) {
+                super();
+                this.mat = new THREE.MeshBasicMaterial({ color: colorHex }); 
+                let shaftRadius = 0.04 * thicknessMultiplier; 
+                let headRadius = 0.18 * thicknessMultiplier;
+                
+                this.shaftGeo = new THREE.CylinderGeometry(shaftRadius, shaftRadius, 1, 8);
+                this.headGeo = new THREE.ConeGeometry(headRadius, 1, 16);
+                
+                this.shaftGeo.translate(0, 0.5, 0);
+                this.headGeo.translate(0, 0.5, 0);
+
+                this.shaft = new THREE.Mesh(this.shaftGeo, this.mat);
+                this.head = new THREE.Mesh(this.headGeo, this.mat);
+                this.add(this.shaft); this.add(this.head);
+                this.visible = false;
+            }
+
+            update(origin, direction, length) {
+                this.position.copy(origin);
+                if (length < 0.1) { this.visible = false; return; }
+                this.visible = true;
+
+                const axis = new THREE.Vector3(0, 1, 0);
+                this.quaternion.setFromUnitVectors(axis, direction.clone().normalize());
+
+                let headLen = Math.min(length * 0.4, 1.2 * (this.shaftGeo.parameters.radiusTop / 0.04));
+                let shaftLen = Math.max(length - headLen, 0.001);
+
+                this.shaft.scale.set(1, shaftLen, 1);
+                this.head.scale.set(1, headLen, 1);
+                this.head.position.y = shaftLen;
+            }
+            setColor(hex) { this.mat.color.setHex(hex); }
+        }
+
+        // Scene Setup
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505); 
+        
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 20, 70);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(20, 50, 20);
+        scene.add(dirLight);
+
+        const gridHelper = new THREE.GridHelper(200, 100, 0x222222, 0x111111);
+        gridHelper.position.y = -2;
+        scene.add(gridHelper);
+
+        let rodMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: 0x444444, transparent: true, opacity: 0.8 }));
+        scene.add(rodMesh);
+
+        const pointPMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        scene.add(pointPMesh);
+
+        // Parallelogram Bounding Box (3D LineSegments)
+        const boxGeo = new THREE.BufferGeometry();
+        const boxMat = new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 0.5, gapSize: 0.5, transparent: true, opacity: 0.4 });
+        const netBoxLines = new THREE.LineSegments(boxGeo, boxMat);
+        scene.add(netBoxLines);
+
+        // Globals
+        let charges = [];
+        let chargeMode = 0; 
+        let chargeSign = 1; 
+        const modes = ["FINITE", "INFINITE", "SEMI-INFINITE"];
+        const L_FINITE = 40;
+        
+        const netArrow = new SlenderArrow(0xffffff, 1.8); 
+        scene.add(netArrow);
+
+        const sliders = { 
+            N: document.getElementById('slider-N'), D: document.getElementById('slider-D'), 
+            S: document.getElementById('slider-S'), B: document.getElementById('slider-B'), Z: document.getElementById('slider-Z') 
+        };
+        const labels = { 
+            N: document.getElementById('label-N'), D: document.getElementById('label-D'), 
+            S: document.getElementById('label-S'), B: document.getElementById('label-B'), Z: document.getElementById('label-Z') 
+        };
+        const btnMode = document.getElementById('btn-mode');
+        const btnSign = document.getElementById('btn-sign');
+        const groupBend = document.getElementById('group-bend');
+        const groupZ = document.getElementById('group-z');
+
+        // Bending Math (-100% to 100%)
+        function getPosition(s, bendPercent, d) {
+            let B = bendPercent / 100;
+            if (Math.abs(B) < 0.001) return new THREE.Vector3(s, 0, 0); 
+
+            // Calculate exact arc length needed
+            let L = L_FINITE * (1 - Math.abs(B)) + (2 * Math.PI * d) * Math.abs(B);
+            
+            // Map s from [-L_FINITE/2, L_FINITE/2] to [-L/2, L/2]
+            let s_mapped = s * (L / L_FINITE);
+
+            let R_final = L / (2 * Math.PI);
+            let alpha = Math.abs(B) * 2 * Math.PI;
+            let R = L / alpha;
+
+            let x = R * Math.sin(s_mapped / R);
+            
+            // B>0 bends up towards P(0,d). B<0 bends down towards P(0,-d).
+            let y = Math.sign(B) * (d - d * Math.cos(s_mapped / R)) * Math.abs(B);
+            
+            return new THREE.Vector3(x, y, 0); 
+        }
+
+        function generateSceneData() {
+            charges.forEach(c => {
+                scene.remove(c.mesh); scene.remove(c.dashLine);
+                scene.remove(c.arrowMain); scene.remove(c.arrowY); scene.remove(c.arrowX); scene.remove(c.arrowZ);
+            });
+            charges = [];
+
+            let N_density = parseInt(sliders.N.value);
+            let d = parseInt(sliders.D.value);
+            let bendVal = chargeMode === 0 ? parseFloat(sliders.B.value) : 0;
+            
+            let baseSpacing = L_FINITE / N_density;
+            let q = (100 / N_density) * chargeSign; 
+
+            let sStart, sEnd;
+            if (chargeMode === 0) { sStart = -L_FINITE/2; sEnd = L_FINITE/2; } 
+            else if (chargeMode === 1) { sStart = -150; sEnd = 150; } 
+            else { sStart = 0; sEnd = 150; }
+
+            // Build physical rod
+            let points = [];
+            for (let s = sStart; s <= sEnd; s += 0.5) {
+                points.push(getPosition(s, bendVal, d));
+            }
+            let curve = new THREE.CatmullRomCurve3(points);
+            rodMesh.geometry.dispose();
+            rodMesh.geometry = new THREE.TubeGeometry(curve, points.length, 0.15, 8, false);
+
+            const chargeGeo = new THREE.SphereGeometry(0.8, 16, 16); 
+            const cColor = chargeSign > 0 ? 0xaa2222 : 0x2222aa;
+
+            // Generate charges
+            for (let s = sStart + baseSpacing/2; s < sEnd; s += baseSpacing) {
+                let pos = getPosition(s, bendVal, d);
+
+                const mesh = new THREE.Mesh(chargeGeo, new THREE.MeshStandardMaterial({ color: cColor }));
+                mesh.position.copy(pos);
+                scene.add(mesh);
+
+                const dashMat = new THREE.LineDashedMaterial({ color: 0xffff00, dashSize: 0.6, gapSize: 0.4, linewidth: 1 });
+                const dashGeo = new THREE.BufferGeometry().setFromPoints([pos, pos]);
+                const dashLine = new THREE.Line(dashGeo, dashMat);
+                dashLine.visible = false;
+                scene.add(dashLine);
+
+                let aMain = new SlenderArrow(0x00e6e6); 
+                let aY = new SlenderArrow(0x55ff55);    
+                let aX = new SlenderArrow(0xffaa00);    
+                let aZ = new SlenderArrow(0xff00ff);
+                
+                scene.add(aMain); scene.add(aY); scene.add(aX); scene.add(aZ);
+
+                charges.push({
+                    s: s, x: pos.x, y: pos.y, z: pos.z, q: q, mesh: mesh, selected: false,
+                    animLine: 0, animMain: 0, animComp: 0, animCancel: 1, isCancelled: false,
+                    dashLine: dashLine, arrowMain: aMain, arrowY: aY, arrowX: aX, arrowZ: aZ
+                });
+            }
+        }
+
+        // Draw the 3D Parallelogram Box for Net Vector
+        function updateParallelogram(P, Ex, Ey, Ez) {
+            if (Math.abs(Ex) < 0.1 && Math.abs(Ey) < 0.1 && Math.abs(Ez) < 0.1) {
+                netBoxLines.visible = false; return;
+            }
+            netBoxLines.visible = true;
+            const pts = [
+                P.x, P.y, P.z,  P.x+Ex, P.y, P.z,       // Bottom X edge
+                P.x, P.y, P.z,  P.x, P.y+Ey, P.z,       // Left Y edge
+                P.x, P.y, P.z,  P.x, P.y, P.z+Ez,       // Back Z edge
+                
+                P.x+Ex, P.y, P.z,  P.x+Ex, P.y+Ey, P.z, // Right Y edge
+                P.x, P.y+Ey, P.z,  P.x+Ex, P.y+Ey, P.z, // Top X edge
+                
+                P.x+Ex, P.y, P.z,  P.x+Ex, P.y, P.z+Ez, // Bottom right Z
+                P.x, P.y+Ey, P.z,  P.x, P.y+Ey, P.z+Ez, // Top left Z
+                P.x, P.y, P.z+Ez,  P.x+Ex, P.y, P.z+Ez, // Front X
+                P.x, P.y, P.z+Ez,  P.x, P.y+Ey, P.z+Ez, // Front Y
+                
+                P.x+Ex, P.y+Ey, P.z,  P.x+Ex, P.y+Ey, P.z+Ez, // Top right Z
+                P.x+Ex, P.y, P.z+Ez,  P.x+Ex, P.y+Ey, P.z+Ez, // Front right Y
+                P.x, P.y+Ey, P.z+Ez,  P.x+Ex, P.y+Ey, P.z+Ez  // Front top X
+            ];
+            netBoxLines.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+            netBoxLines.computeLineDistances();
+        }
+
+        // UI Interactions
+        btnMode.addEventListener('click', () => {
+            chargeMode = (chargeMode + 1) % 3;
+            btnMode.innerText = `MODE: ${modes[chargeMode]}`;
+            
+            if (chargeMode === 0) {
+                groupBend.classList.remove('dimmed'); sliders.B.style.pointerEvents = 'auto';
+            } else {
+                groupBend.classList.add('dimmed'); sliders.B.style.pointerEvents = 'none';
+            }
+            generateSceneData();
+        });
+
+        btnSign.addEventListener('click', () => {
+            chargeSign *= -1;
+            if (chargeSign > 0) {
+                btnSign.innerText = "CHARGE: POS (+)";
+                btnSign.classList.remove('negative');
+            } else {
+                btnSign.innerText = "CHARGE: NEG (-)";
+                btnSign.classList.add('negative');
+            }
+            generateSceneData();
+        });
+
+        document.getElementById('btn-all').addEventListener('click', () => {
+            charges.forEach(c => {
+                c.selected = true; c.animLine = 0; c.animMain = 0; c.animComp = 0; c.animCancel = 1; c.isCancelled = false;
+            });
+            updateCancellations();
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            charges.forEach(c => {
+                c.selected = false; c.animLine = 0; c.animMain = 0; c.animComp = 0; c.animCancel = 1; c.isCancelled = false;
+                c.arrowMain.visible = false; c.arrowX.visible = false; c.arrowY.visible = false; c.arrowZ.visible = false; c.dashLine.visible = false;
+            });
+        });
+
+        sliders.N.addEventListener('input', generateSceneData);
+        sliders.B.addEventListener('input', generateSceneData);
+        sliders.D.addEventListener('input', generateSceneData);
+
+        const raycaster = new THREE.Raycaster();
+        raycaster.params.Points.threshold = 1.5; 
+        const mouse = new THREE.Vector2();
+        let isDragging = false;
+
+        controls.addEventListener('change', () => { isDragging = true; });
+        window.addEventListener('pointerdown', () => { isDragging = false; });
+        window.addEventListener('pointerup', (e) => {
+            if (isDragging) return; 
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(charges.map(c => c.mesh));
+
+            if (intersects.length > 0) {
+                const clickedMesh = intersects[0].object;
+                const charge = charges.find(c => c.mesh === clickedMesh);
+                
+                charge.selected = !charge.selected;
+                if (!charge.selected) {
+                    charge.animLine = 0; charge.animMain = 0; charge.animComp = 0; charge.animCancel = 1;
+                    charge.arrowMain.visible = false; charge.arrowX.visible = false; charge.arrowY.visible = false; charge.arrowZ.visible = false;
+                    charge.dashLine.visible = false;
+                }
+                updateCancellations();
+            }
+        });
+
+        function updateCancellations() {
+            let selected = charges.filter(c => c.selected);
+            charges.forEach(c => c.isCancelled = false);
+
+            for (let i = 0; i < selected.length; i++) {
+                for (let j = i + 1; j < selected.length; j++) {
+                    let c1 = selected[i]; let c2 = selected[j];
+                    if (c1.Ex * c2.Ex < 0 && Math.abs(Math.abs(c1.Ex) - Math.abs(c2.Ex)) < 0.1) {
+                        c1.isCancelled = true; c2.isCancelled = true;
+                    }
+                }
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            let d = parseInt(sliders.D.value);
+            let scale = parseInt(sliders.S.value);
+            let B = parseFloat(sliders.B.value);
+
+            // Dynamically show Z slider when it's a full circle
+            let isCircle = Math.abs(B) === 100 && chargeMode === 0;
+            if (isCircle) {
+                groupZ.classList.remove('dimmed'); sliders.Z.style.pointerEvents = 'auto';
+            } else {
+                groupZ.classList.add('dimmed'); sliders.Z.style.pointerEvents = 'none'; sliders.Z.value = 0;
+            }
+
+            let z_p = isCircle ? parseInt(sliders.Z.value) : 0;
+            let Py = (B >= 0 || chargeMode !== 0) ? d : -d; // P shifts to become center of circle
+            let Point_P = new THREE.Vector3(0, Py, z_p);
+
+            controls.target.lerp(Point_P, 0.05); // Camera smooth follow
+
+            labels.N.innerText = `CHARGES : ${sliders.N.value}`;
+            labels.D.innerText = `RADIUS (d) : ${d}`;
+            labels.S.innerText = `SCALE : ${scale}`;
+            labels.B.innerText = `BEND : ${B}%`;
+            labels.Z.innerText = `Z-AXIS : ${z_p}`;
+
+            pointPMesh.position.copy(Point_P);
+
+            // 1. Calculate Physics
+            charges.forEach(c => {
+                let rx = Point_P.x - c.x; 
+                let ry = Point_P.y - c.y; 
+                let rz = Point_P.z - c.z;
+                let r_squared = rx*rx + ry*ry + rz*rz; 
+                let r = Math.sqrt(r_squared);
+                
+                let E_mag = (c.q / r_squared) * (scale / 10);
+                c.Ex = E_mag * (rx / r);
+                c.Ey = E_mag * (ry / r); 
+                c.Ez = E_mag * (rz / r);
+                
+                let selCol = chargeSign > 0 ? 0xff4444 : 0x4444ff;
+                let unCol = chargeSign > 0 ? 0xaa2222 : 0x2222aa;
+                c.mesh.material.color.setHex(c.selected ? selCol : unCol);
+            });
+
+            // 2. Animate Elements
+            let activeNetEx = 0, activeNetEy = 0, activeNetEz = 0;
+            let selectedCharges = charges.filter(c => c.selected);
+
+            charges.forEach(c => {
+                if (!c.selected) return;
+
+                if (c.animLine < 1) c.animLine = Math.min(1, c.animLine + 0.05); 
+                else if (c.animMain < 1) c.animMain = Math.min(1, c.animMain + 0.06); 
+                else if (c.animComp < 1) c.animComp = Math.min(1, c.animComp + 0.05); 
+                else {
+                    if (c.isCancelled) c.animCancel = Math.max(0, c.animCancel - 0.05); 
+                    else c.animCancel = Math.min(1, c.animCancel + 0.05);
+                }
+
+                let startP = new THREE.Vector3(c.x, c.y, c.z);
+
+                if (c.animLine > 0) {
+                    c.dashLine.visible = true;
+                    let currentEnd = new THREE.Vector3().lerpVectors(startP, Point_P, c.animLine);
+                    
+                    const pos = c.dashLine.geometry.attributes.position.array;
+                    pos[0] = startP.x; pos[1] = startP.y; pos[2] = startP.z;
+                    pos[3] = currentEnd.x; pos[4] = currentEnd.y; pos[5] = currentEnd.z;
+                    c.dashLine.geometry.attributes.position.needsUpdate = true;
+                    c.dashLine.computeLineDistances();
+                }
+
+                if (c.animMain > 0) {
+                    let mainDir = new THREE.Vector3(c.Ex, c.Ey, c.Ez).multiplyScalar(c.animMain);
+                    c.arrowMain.update(Point_P, mainDir, mainDir.length());
+                } else c.arrowMain.visible = false;
+
+                if (c.animComp > 0) {
+                    let compEx = c.Ex * c.animComp * c.animCancel;
+                    let compEy = c.Ey * c.animComp;
+                    let compEz = c.Ez * c.animComp;
+
+                    // All originate from P now (Parallelogram law)
+                    c.arrowX.update(Point_P, new THREE.Vector3(Math.sign(compEx),0,0), Math.abs(compEx));
+                    c.arrowX.setColor((c.isCancelled && c.animCancel < 1) ? 0xff3333 : 0xffaa00);
+                    
+                    c.arrowY.update(Point_P, new THREE.Vector3(0,Math.sign(compEy),0), Math.abs(compEy));
+                    c.arrowZ.update(Point_P, new THREE.Vector3(0,0,Math.sign(compEz)), Math.abs(compEz));
+                    
+                    activeNetEx += compEx;
+                    activeNetEy += compEy;
+                    activeNetEz += compEz;
+                } else {
+                    c.arrowY.visible = false; c.arrowX.visible = false; c.arrowZ.visible = false;
+                }
+            });
+
+            // Net Vector & Parallelogram
+            let anySelected = selectedCharges.length > 0;
+            let netMag = Math.sqrt(activeNetEx**2 + activeNetEy**2 + activeNetEz**2);
+            if (anySelected && netMag > 0.1) {
+                if (Math.abs(activeNetEx) < 0.1) activeNetEx = 0;
+                let netDir = new THREE.Vector3(activeNetEx, activeNetEy, activeNetEz);
+                netArrow.update(Point_P, netDir, netMag);
+                updateParallelogram(Point_P, activeNetEx, activeNetEy, activeNetEz);
+            } else {
+                netArrow.visible = false;
+                netBoxLines.visible = false;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        generateSceneData();
+        animate();
+    </script>
+</body>
+</html>
