@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electric Field Physics Simulation</title>
+    <style>
+        /* Modern Lemon Milk Font */
+        @import url('https://fonts.cdnfonts.com/css/lemon-milk');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'LEMON MILK', sans-serif;
+            touch-action: none;
+            color: #fff;
+        }
+
+        /* Responsive Collapsible Panel */
+        #ui-container {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            z-index: 10;
+        }
+
+        #toggle-btn {
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            padding: 10px 20px;
+            font-family: 'LEMON MILK', sans-serif;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        #toggle-btn:active {
+            transform: scale(0.95);
+        }
+
+        #panel {
+            margin-top: 10px;
+            background: rgba(15, 15, 15, 0.9);
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: opacity 0.3s, transform 0.3s;
+            transform-origin: top left;
+            width: 280px;
+            box-sizing: border-box;
+        }
+
+        #panel.collapsed {
+            opacity: 0;
+            transform: scaleY(0);
+            pointer-events: none;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .control-group label {
+            font-size: 11px;
+            letter-spacing: 1px;
+            color: #aaa;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            margin-top: -5px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #444;
+            border-radius: 2px;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 11px;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-container">
+        <button id="toggle-btn">SETTINGS</button>
+        <div id="panel">
+            <div class="control-group">
+                <label>FIELD LINE SETUP</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="setupType" value="continuous" checked> LONG CONTINUOUS</label>
+                    <label><input type="radio" name="setupType" value="discontinuous"> SHORT DISCONTINUOUS</label>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>LINES ALONG 360&deg; (<span id="countVal">24</span>)</label>
+                <input type="range" id="countSlider" min="4" max="60" step="4" value="24">
+            </div>
+
+            <div class="control-group">
+                <label>ARROW LENGTH</label>
+                <input type="range" id="lengthSlider" min="1.0" max="6.0" step="0.1" value="3.5">
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Maps for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Globals
+        let renderer, mainScene, mainCamera, controls;
+        let hudScene, hudCamera, viewCube;
+        
+        let chargeMesh, chargeMat;
+        let planeGroups = {};
+        
+        let arrowsGroup = new THREE.Group();
+        let arrowDataList = []; 
+        let cubeMaterials = [];
+        
+        // Active states
+        let currentSetup = 'continuous';
+        let currentLinesCount = 24;
+        let currentArrowLength = 3.5;
+        let activePlane = null;
+
+        let isAnimatingCamera = false;
+        let targetCameraPos = new THREE.Vector3();
+        
+        // Dynamic HUD Size mapping
+        const getHudSize = () => window.innerWidth < 600 ? 100 : 130;
+
+        init();
+
+        function init() {
+            // 1. Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.autoClear = false;
+            document.body.appendChild(renderer.domElement);
+
+            // 2. Core Scene Setup
+            mainScene = new THREE.Scene();
+            mainCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            mainCamera.position.set(10, 8, 12);
+
+            controls = new OrbitControls(mainCamera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // Lighting
+            mainScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const pointLight = new THREE.PointLight(0xffffff, 100);
+            pointLight.position.set(5, 5, 5);
+            mainScene.add(pointLight);
+
+            // 3. Build Elements
+            createCharge();
+            createHighlightPlanes();
+            
+            mainScene.add(arrowsGroup);
+            generateElectricField();
+
+            // 4. Set up HUD
+            setupHUD();
+            
+            // Wait for custom font to load, then update Cube textures
+            document.fonts.ready.then(() => { updateHUDTextures(); });
+
+            // 5. Connect UI
+            setupUI();
+
+            // 6. Events
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('pointerdown', onPointerDown);
+
+            animate();
+        }
+
+        // --- Geometric Setup ---
+        function createCharge() {
+            const chargeGeo = new THREE.SphereGeometry(0.8, 64, 64);
+            chargeMat = new THREE.MeshPhysicalMaterial({ 
+                color: 0xaa0000,
+                emissive: 0x330000,
+                roughness: 0.2,
+                metalness: 0.1,
+                transparent: true,
+                opacity: 1.0,
+                depthWrite: true
+            });
+            chargeMesh = new THREE.Mesh(chargeGeo, chargeMat);
+            mainScene.add(chargeMesh);
+        }
+
+        function generateElectricField() {
+            // Clear prior arrows robustly
+            while(arrowsGroup.children.length > 0) {
+                arrowsGroup.remove(arrowsGroup.children[0]);
+            }
+            arrowDataList = [];
+
+            const N = currentLinesCount; 
+            const dAngle = (Math.PI * 2) / N;
+            
+            // Generate even longitudinal/latitudinal spherical steps
+            // This guarantees exact alignment with orthogonal planes
+            const polarSteps = Math.max(2, Math.floor(N / 2));
+            const dPhi = Math.PI / polarSteps;
+
+            const vectors = [];
+
+            // Add surrounding grid
+            for (let j = 1; j < polarSteps; j++) {
+                let phi = j * dPhi;
+                for (let i = 0; i < N; i++) {
+                    let theta = i * dAngle;
+                    let dir = new THREE.Vector3().setFromSphericalCoords(1, phi, theta);
+                    vectors.push(dir);
+                }
+            }
+            // Add vertical poles specifically
+            vectors.push(new THREE.Vector3(0, 1, 0));
+            vectors.push(new THREE.Vector3(0, -1, 0));
+
+            const R = 0.85; 
+            const L = currentArrowLength;
+
+            vectors.forEach(dir => {
+                let color = 0xffffff;
+                let headW = 0.04; // Very Slender Elegance
+                let headL = 0.15;
+
+                if (currentSetup === 'continuous') {
+                    // Setup 1: Single long slender line
+                    const pos = dir.clone().multiplyScalar(R);
+                    const arrow = new THREE.ArrowHelper(dir, pos, L, color, headL, headW);
+                    arrowsGroup.add(arrow);
+                    arrowDataList.push({ mesh: arrow, dir: dir.clone() });
+                } 
+                else if (currentSetup === 'discontinuous') {
+                    // Setup 2: Three shorter segmented arrows per line
+                    const segments = 3;
+                    const stepSize = L / segments;
+                    const arrLen = stepSize * 0.6; // Gap scaling
+
+                    for(let s = 0; s < segments; s++) {
+                        const startR = R + (s * stepSize);
+                        const pos = dir.clone().multiplyScalar(startR);
+                        const arrow = new THREE.ArrowHelper(dir, pos, arrLen, color, 0.1, headW);
+                        arrowsGroup.add(arrow);
+                        arrowDataList.push({ mesh: arrow, dir: dir.clone() });
+                    }
+                }
+            });
+
+            // Reapply highlighting dynamically if user changes slider while plane is active
+            if(activePlane) applyHighlightIsolation(activePlane);
+        }
+
+        function createHighlightPlanes() {
+            function createPlane(colorStr, planeStr) {
+                const group = new THREE.Group();
+                
+                // Semi-transparent base plane
+                const geo = new THREE.PlaneGeometry(12, 12);
+                const mat = new THREE.MeshBasicMaterial({ color: colorStr, side: THREE.DoubleSide, transparent: true, opacity: 0.08, depthWrite: false });
+                const plane = new THREE.Mesh(geo, mat);
+                
+                // Visible reference grid
+                const grid = new THREE.GridHelper(12, 12, colorStr, colorStr);
+                grid.material.opacity = 0.3;
+                grid.material.transparent = true;
+                grid.rotation.x = Math.PI / 2;
+
+                group.add(plane);
+                group.add(grid);
+
+                // Re-orient for the specific 3D Plane
+                if (planeStr === 'YZ') group.rotation.y = Math.PI / 2;
+                if (planeStr === 'ZX') group.rotation.x = Math.PI / 2;
+                
+                group.visible = false;
+                mainScene.add(group);
+                return group;
+            }
+
+            planeGroups['XY'] = createPlane(0x00aaff, 'XY');
+            planeGroups['YZ'] = createPlane(0xff3333, 'YZ');
+            planeGroups['ZX'] = createPlane(0x33ff33, 'ZX');
+        }
+
+        // --- Heads Up Display (HUD) ---
+        function setupHUD() {
+            hudScene = new THREE.Scene();
+            hudCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+            
+            // Standard faces before font applies
+            const faces = [
+                { text: 'YZ', bg: '#cc0000' }, { text: 'YZ', bg: '#880000' },
+                { text: 'ZX', bg: '#00cc00' }, { text: 'ZX', bg: '#008800' },
+                { text: 'XY', bg: '#0088cc' }, { text: 'XY', bg: '#005588' } 
+            ];
+
+            faces.forEach(face => {
+                cubeMaterials.push(createCanvasMaterial(face.text, face.bg));
+            });
+
+            viewCube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), cubeMaterials);
+            hudScene.add(viewCube);
+        }
+
+        function createCanvasMaterial(text, bgColor) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.lineWidth = 12;
+            ctx.strokeStyle = '#ffffff';
+            ctx.strokeRect(0, 0, 256, 256);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '65px "LEMON MILK", sans-serif'; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 138); // Offset vertically to center text mathematically
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return new THREE.MeshBasicMaterial({ map: texture });
+        }
+
+        function updateHUDTextures() {
+            const faces = [
+                { text: 'YZ', bg: '#cc0000' }, { text: 'YZ', bg: '#880000' },
+                { text: 'ZX', bg: '#00cc00' }, { text: 'ZX', bg: '#008800' },
+                { text: 'XY', bg: '#0088cc' }, { text: 'XY', bg: '#005588' }
+            ];
+            
+            // Replace texture completely to ensure it updates visually
+            faces.forEach((face, i) => {
+                const newMat = createCanvasMaterial(face.text, face.bg);
+                if(cubeMaterials[i].map) cubeMaterials[i].map.dispose();
+                cubeMaterials[i].map = newMat.map;
+                cubeMaterials[i].needsUpdate = true;
+            });
+        }
+
+        // --- Interaction Logic ---
+        function setupUI() {
+            document.getElementById('toggle-btn').addEventListener('click', () => {
+                document.getElementById('panel').classList.toggle('collapsed');
+            });
+
+            document.querySelectorAll('input[name="setupType"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    currentSetup = e.target.value;
+                    generateElectricField();
+                });
+            });
+
+            const countSlider = document.getElementById('countSlider');
+            countSlider.addEventListener('input', (e) => {
+                currentLinesCount = parseInt(e.target.value);
+                document.getElementById('countVal').innerText = currentLinesCount;
+                generateElectricField();
+            });
+
+            document.getElementById('lengthSlider').addEventListener('input', (e) => {
+                currentArrowLength = parseFloat(e.target.value);
+                generateElectricField();
+            });
+        }
+
+        function onPointerDown(event) {
+            // Abort if click lands inside UI
+            if (event.target.closest('#ui-container')) return;
+
+            const hudSize = getHudSize();
+            const xInCube = event.clientX - (window.innerWidth - hudSize);
+            const yInCube = event.clientY;
+
+            // Clicking HUD logic
+            if (xInCube >= 0 && xInCube <= hudSize && yInCube >= 0 && yInCube <= hudSize) {
+                const ndcX = (xInCube / hudSize) * 2 - 1;
+                const ndcY = -(yInCube / hudSize) * 2 + 1;
+
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), hudCamera);
+                
+                const intersects = raycaster.intersectObject(viewCube);
+                if (intersects.length > 0) {
+                    handleCubeClick(intersects[0].face.materialIndex);
+                    return;
+                }
+            } 
+            
+            // Clear highlights if clicking background
+            if (!isAnimatingCamera) clearHighlights();
+        }
+
+        function handleCubeClick(faceIndex) {
+            const dist = 12; 
+            let planeStr = '';
+
+            // Map face ID to Camera Coordinates + Selected Plane
+            if (faceIndex === 0 || faceIndex === 1) { planeStr = 'YZ'; targetCameraPos.set(faceIndex === 0 ? dist : -dist, 0, 0); }
+            else if (faceIndex === 2 || faceIndex === 3) { planeStr = 'ZX'; targetCameraPos.set(0, faceIndex === 2 ? dist : -dist, 0); }
+            else if (faceIndex === 4 || faceIndex === 5) { planeStr = 'XY'; targetCameraPos.set(0, 0, faceIndex === 4 ? dist : -dist); }
+
+            activePlane = planeStr;
+            isAnimatingCamera = true;
+            controls.enabled = false; // Temporarily disable manual orbit
+
+            applyHighlightIsolation(planeStr);
+        }
+
+        function applyHighlightIsolation(planeStr) {
+            // Hide all prior grids
+            planeGroups['XY'].visible = false;
+            planeGroups['YZ'].visible = false;
+            planeGroups['ZX'].visible = false;
+            
+            // Highlight specific structural 2D Grid
+            planeGroups[planeStr].visible = true;
+
+            // Make Sphere deeply transparent to see vectors inside it
+            chargeMat.opacity = 0.2;
+            chargeMat.depthWrite = false;
+
+            // Hide unaligned arrows, highlight precisely aligned ones
+            arrowDataList.forEach(item => {
+                const dir = item.dir;
+                let isOnPlane = false;
+
+                // Evaluate mathematically using absolute limits (0.01 tolerance)
+                if (planeStr === 'XY' && Math.abs(dir.z) < 0.01) isOnPlane = true;
+                if (planeStr === 'YZ' && Math.abs(dir.x) < 0.01) isOnPlane = true;
+                if (planeStr === 'ZX' && Math.abs(dir.y) < 0.01) isOnPlane = true;
+
+                if (isOnPlane) {
+                    item.mesh.visible = true;
+                    // Color code to match cube
+                    let colorCode = planeStr === 'XY' ? 0x00aaff : (planeStr === 'YZ' ? 0xff3333 : 0x33ff33);
+                    item.mesh.setColor(new THREE.Color(colorCode));
+                } else {
+                    item.mesh.visible = false; 
+                }
+            });
+        }
+
+        function clearHighlights() {
+            activePlane = null;
+            
+            planeGroups['XY'].visible = false;
+            planeGroups['YZ'].visible = false;
+            planeGroups['ZX'].visible = false;
+
+            // Return Sphere to normal state
+            chargeMat.opacity = 1.0;
+            chargeMat.depthWrite = true;
+
+            // Restore complete Electric Field Vectors
+            arrowDataList.forEach(item => {
+                item.mesh.visible = true;
+                item.mesh.setColor(new THREE.Color(0xffffff));
+            });
+        }
+
+        // --- Rendering Loop ---
+        function onWindowResize() {
+            mainCamera.aspect = window.innerWidth / window.innerHeight;
+            mainCamera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Smooth Camera Easing
+            if (isAnimatingCamera) {
+                mainCamera.position.lerp(targetCameraPos, 0.08);
+                mainCamera.lookAt(0, 0, 0);
+                
+                // Complete threshold
+                if (mainCamera.position.distanceTo(targetCameraPos) < 0.1) {
+                    mainCamera.position.copy(targetCameraPos);
+                    isAnimatingCamera = false;
+                    controls.enabled = true; 
+                }
+            } else {
+                controls.update();
+            }
+
+            // Sync HUD Cube Rotation
+            hudCamera.position.copy(mainCamera.position).normalize().multiplyScalar(5.5);
+            hudCamera.lookAt(0, 0, 0);
+
+            // Render Layout Mapping (Safely avoiding DPR calculation bugs)
+            const hudSize = getHudSize();
+
+            // 1. Render Full Viewport
+            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            renderer.setScissorTest(false);
+            renderer.clear();
+            renderer.render(mainScene, mainCamera);
+
+            // 2. Render ViewCube inside Scissored Top Right
+            renderer.clearDepth(); 
+            renderer.setScissorTest(true);
+            renderer.setScissor(window.innerWidth - hudSize, window.innerHeight - hudSize, hudSize, hudSize);
+            renderer.setViewport(window.innerWidth - hudSize, window.innerHeight - hudSize, hudSize, hudSize);
+            renderer.render(hudScene, hudCamera);
+        }
+    </script>
+</body>
+</html>
