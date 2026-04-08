@@ -57,7 +57,7 @@
             gap: 20px;
             transition: opacity 0.3s, transform 0.3s;
             transform-origin: top left;
-            width: 280px;
+            width: 300px;
             box-sizing: border-box;
         }
 
@@ -114,12 +114,75 @@
             cursor: pointer;
             color: #fff;
         }
+
+        /* Custom Toggle Switch */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 36px;
+            height: 20px;
+        }
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #444;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #ffffff; }
+        input:checked + .slider:before {
+            transform: translateX(16px);
+            background-color: #000;
+        }
     </style>
 </head>
 <body>
     <div id="ui-container">
         <button id="toggle-btn">SETTINGS</button>
         <div id="panel">
+
+            <div class="control-group">
+                <div class="toggle-row">
+                    <label style="color: #fff; font-size: 12px;">SHOW 3D PLANES</label>
+                    <label class="switch">
+                        <input type="checkbox" id="planesToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <label style="color: #fff; font-size: 12px;">ISOLATE 2D FIELD ON ALIGN</label>
+                    <label class="switch">
+                        <input type="checkbox" id="isolateToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <hr style="border: 0.5px solid #333; width: 100%;">
+
             <div class="control-group">
                 <label>FIELD LINE SETUP</label>
                 <div class="radio-group">
@@ -159,7 +222,7 @@
         let hudScene, hudCamera, viewCube;
         
         let chargeMesh, chargeMat;
-        let planeGroups = {};
+        let referencePlanesGroup = new THREE.Group();
         
         let arrowsGroup = new THREE.Group();
         let arrowDataList = []; 
@@ -169,10 +232,15 @@
         let currentSetup = 'continuous';
         let currentLinesCount = 24;
         let currentArrowLength = 3.5;
-        let activePlane = null;
-
+        
         let isAnimatingCamera = false;
         let targetCameraPos = new THREE.Vector3();
+        let activePlaneStr = null;
+        let isIsolated = false;
+
+        // UI States
+        let showPlanes = true;
+        let isolateOnAlign = false;
         
         // Dynamic HUD Size mapping
         const getHudSize = () => window.innerWidth < 600 ? 100 : 130;
@@ -204,15 +272,13 @@
 
             // 3. Build Elements
             createCharge();
-            createHighlightPlanes();
+            createReferencePlanes();
             
             mainScene.add(arrowsGroup);
             generateElectricField();
 
             // 4. Set up HUD
             setupHUD();
-            
-            // Wait for custom font to load, then update Cube textures
             document.fonts.ready.then(() => { updateHUDTextures(); });
 
             // 5. Connect UI
@@ -241,6 +307,39 @@
             mainScene.add(chargeMesh);
         }
 
+        function createReferencePlanes() {
+            mainScene.add(referencePlanesGroup);
+
+            function addPlane(colorStr, rotationAxis) {
+                const group = new THREE.Group();
+                
+                // Semi-transparent base plane
+                const geo = new THREE.PlaneGeometry(12, 12);
+                const mat = new THREE.MeshBasicMaterial({ color: colorStr, side: THREE.DoubleSide, transparent: true, opacity: 0.06, depthWrite: false });
+                const plane = new THREE.Mesh(geo, mat);
+                
+                // Visible reference grid
+                const grid = new THREE.GridHelper(12, 12, colorStr, colorStr);
+                grid.material.opacity = 0.25;
+                grid.material.transparent = true;
+                grid.rotation.x = Math.PI / 2;
+
+                group.add(plane);
+                group.add(grid);
+
+                // Re-orient for the specific 3D Plane
+                if (rotationAxis === 'y') group.rotation.y = Math.PI / 2; // YZ Plane
+                if (rotationAxis === 'x') group.rotation.x = Math.PI / 2; // ZX Plane
+                
+                referencePlanesGroup.add(group);
+            }
+
+            // XY = Blue, YZ = Red, ZX = Green (Matches View Cube exactly)
+            addPlane(0x00aaff, 'z'); // XY Plane
+            addPlane(0xff3333, 'y'); // YZ Plane
+            addPlane(0x33ff33, 'x'); // ZX Plane
+        }
+
         function generateElectricField() {
             // Clear prior arrows robustly
             while(arrowsGroup.children.length > 0) {
@@ -252,13 +351,11 @@
             const dAngle = (Math.PI * 2) / N;
             
             // Generate even longitudinal/latitudinal spherical steps
-            // This guarantees exact alignment with orthogonal planes
             const polarSteps = Math.max(2, Math.floor(N / 2));
             const dPhi = Math.PI / polarSteps;
 
             const vectors = [];
 
-            // Add surrounding grid
             for (let j = 1; j < polarSteps; j++) {
                 let phi = j * dPhi;
                 for (let i = 0; i < N; i++) {
@@ -267,7 +364,6 @@
                     vectors.push(dir);
                 }
             }
-            // Add vertical poles specifically
             vectors.push(new THREE.Vector3(0, 1, 0));
             vectors.push(new THREE.Vector3(0, -1, 0));
 
@@ -276,21 +372,19 @@
 
             vectors.forEach(dir => {
                 let color = 0xffffff;
-                let headW = 0.04; // Very Slender Elegance
+                let headW = 0.04; 
                 let headL = 0.15;
 
                 if (currentSetup === 'continuous') {
-                    // Setup 1: Single long slender line
                     const pos = dir.clone().multiplyScalar(R);
                     const arrow = new THREE.ArrowHelper(dir, pos, L, color, headL, headW);
                     arrowsGroup.add(arrow);
                     arrowDataList.push({ mesh: arrow, dir: dir.clone() });
                 } 
                 else if (currentSetup === 'discontinuous') {
-                    // Setup 2: Three shorter segmented arrows per line
                     const segments = 3;
                     const stepSize = L / segments;
-                    const arrLen = stepSize * 0.6; // Gap scaling
+                    const arrLen = stepSize * 0.6; 
 
                     for(let s = 0; s < segments; s++) {
                         const startR = R + (s * stepSize);
@@ -302,40 +396,10 @@
                 }
             });
 
-            // Reapply highlighting dynamically if user changes slider while plane is active
-            if(activePlane) applyHighlightIsolation(activePlane);
-        }
-
-        function createHighlightPlanes() {
-            function createPlane(colorStr, planeStr) {
-                const group = new THREE.Group();
-                
-                // Semi-transparent base plane
-                const geo = new THREE.PlaneGeometry(12, 12);
-                const mat = new THREE.MeshBasicMaterial({ color: colorStr, side: THREE.DoubleSide, transparent: true, opacity: 0.08, depthWrite: false });
-                const plane = new THREE.Mesh(geo, mat);
-                
-                // Visible reference grid
-                const grid = new THREE.GridHelper(12, 12, colorStr, colorStr);
-                grid.material.opacity = 0.3;
-                grid.material.transparent = true;
-                grid.rotation.x = Math.PI / 2;
-
-                group.add(plane);
-                group.add(grid);
-
-                // Re-orient for the specific 3D Plane
-                if (planeStr === 'YZ') group.rotation.y = Math.PI / 2;
-                if (planeStr === 'ZX') group.rotation.x = Math.PI / 2;
-                
-                group.visible = false;
-                mainScene.add(group);
-                return group;
+            // Re-apply isolation logic if it's currently active
+            if (isIsolated && activePlaneStr) {
+                applyIsolation(activePlaneStr);
             }
-
-            planeGroups['XY'] = createPlane(0x00aaff, 'XY');
-            planeGroups['YZ'] = createPlane(0xff3333, 'YZ');
-            planeGroups['ZX'] = createPlane(0x33ff33, 'ZX');
         }
 
         // --- Heads Up Display (HUD) ---
@@ -343,7 +407,6 @@
             hudScene = new THREE.Scene();
             hudCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
             
-            // Standard faces before font applies
             const faces = [
                 { text: 'YZ', bg: '#cc0000' }, { text: 'YZ', bg: '#880000' },
                 { text: 'ZX', bg: '#00cc00' }, { text: 'ZX', bg: '#008800' },
@@ -373,7 +436,7 @@
             ctx.font = '65px "LEMON MILK", sans-serif'; 
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(text, 128, 138); // Offset vertically to center text mathematically
+            ctx.fillText(text, 128, 138); 
             
             const texture = new THREE.CanvasTexture(canvas);
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -387,7 +450,6 @@
                 { text: 'XY', bg: '#0088cc' }, { text: 'XY', bg: '#005588' }
             ];
             
-            // Replace texture completely to ensure it updates visually
             faces.forEach((face, i) => {
                 const newMat = createCanvasMaterial(face.text, face.bg);
                 if(cubeMaterials[i].map) cubeMaterials[i].map.dispose();
@@ -400,6 +462,17 @@
         function setupUI() {
             document.getElementById('toggle-btn').addEventListener('click', () => {
                 document.getElementById('panel').classList.toggle('collapsed');
+            });
+
+            document.getElementById('planesToggle').addEventListener('change', (e) => {
+                showPlanes = e.target.checked;
+                referencePlanesGroup.visible = showPlanes;
+            });
+
+            document.getElementById('isolateToggle').addEventListener('change', (e) => {
+                isolateOnAlign = e.target.checked;
+                if (!isolateOnAlign) restoreField();
+                else if (activePlaneStr && !isAnimatingCamera) applyIsolation(activePlaneStr);
             });
 
             document.querySelectorAll('input[name="setupType"]').forEach(radio => {
@@ -423,7 +496,6 @@
         }
 
         function onPointerDown(event) {
-            // Abort if click lands inside UI
             if (event.target.closest('#ui-container')) return;
 
             const hudSize = getHudSize();
@@ -445,52 +517,47 @@
                 }
             } 
             
-            // Clear highlights if clicking background
-            if (!isAnimatingCamera) clearHighlights();
+            // Clear isolation and reset state if clicking background
+            if (!isAnimatingCamera) {
+                activePlaneStr = null;
+                restoreField();
+            }
         }
 
         function handleCubeClick(faceIndex) {
             const dist = 12; 
-            let planeStr = '';
 
             // Map face ID to Camera Coordinates + Selected Plane
-            if (faceIndex === 0 || faceIndex === 1) { planeStr = 'YZ'; targetCameraPos.set(faceIndex === 0 ? dist : -dist, 0, 0); }
-            else if (faceIndex === 2 || faceIndex === 3) { planeStr = 'ZX'; targetCameraPos.set(0, faceIndex === 2 ? dist : -dist, 0); }
-            else if (faceIndex === 4 || faceIndex === 5) { planeStr = 'XY'; targetCameraPos.set(0, 0, faceIndex === 4 ? dist : -dist); }
+            if (faceIndex === 0 || faceIndex === 1) { activePlaneStr = 'YZ'; targetCameraPos.set(faceIndex === 0 ? dist : -dist, 0, 0); }
+            else if (faceIndex === 2 || faceIndex === 3) { activePlaneStr = 'ZX'; targetCameraPos.set(0, faceIndex === 2 ? dist : -dist, 0); }
+            else if (faceIndex === 4 || faceIndex === 5) { activePlaneStr = 'XY'; targetCameraPos.set(0, 0, faceIndex === 4 ? dist : -dist); }
 
-            activePlane = planeStr;
+            // Always restore full structure before animating so the user sees it rotating
+            restoreField();
+            
             isAnimatingCamera = true;
-            controls.enabled = false; // Temporarily disable manual orbit
-
-            applyHighlightIsolation(planeStr);
+            controls.enabled = false; 
         }
 
-        function applyHighlightIsolation(planeStr) {
-            // Hide all prior grids
-            planeGroups['XY'].visible = false;
-            planeGroups['YZ'].visible = false;
-            planeGroups['ZX'].visible = false;
-            
-            // Highlight specific structural 2D Grid
-            planeGroups[planeStr].visible = true;
+        function applyIsolation(planeStr) {
+            isIsolated = true;
 
             // Make Sphere deeply transparent to see vectors inside it
             chargeMat.opacity = 0.2;
             chargeMat.depthWrite = false;
 
-            // Hide unaligned arrows, highlight precisely aligned ones
+            // Hide unaligned arrows, colorize aligned ones
             arrowDataList.forEach(item => {
                 const dir = item.dir;
                 let isOnPlane = false;
 
-                // Evaluate mathematically using absolute limits (0.01 tolerance)
+                // Evaluate mathematically using absolute limits
                 if (planeStr === 'XY' && Math.abs(dir.z) < 0.01) isOnPlane = true;
                 if (planeStr === 'YZ' && Math.abs(dir.x) < 0.01) isOnPlane = true;
                 if (planeStr === 'ZX' && Math.abs(dir.y) < 0.01) isOnPlane = true;
 
                 if (isOnPlane) {
                     item.mesh.visible = true;
-                    // Color code to match cube
                     let colorCode = planeStr === 'XY' ? 0x00aaff : (planeStr === 'YZ' ? 0xff3333 : 0x33ff33);
                     item.mesh.setColor(new THREE.Color(colorCode));
                 } else {
@@ -499,18 +566,14 @@
             });
         }
 
-        function clearHighlights() {
-            activePlane = null;
+        function restoreField() {
+            isIsolated = false;
             
-            planeGroups['XY'].visible = false;
-            planeGroups['YZ'].visible = false;
-            planeGroups['ZX'].visible = false;
-
             // Return Sphere to normal state
             chargeMat.opacity = 1.0;
             chargeMat.depthWrite = true;
 
-            // Restore complete Electric Field Vectors
+            // Restore complete Electric Field Vectors to white
             arrowDataList.forEach(item => {
                 item.mesh.visible = true;
                 item.mesh.setColor(new THREE.Color(0xffffff));
@@ -527,16 +590,19 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Smooth Camera Easing
+            // Smooth Camera Easing - Rotates entire field & planes visually
             if (isAnimatingCamera) {
                 mainCamera.position.lerp(targetCameraPos, 0.08);
                 mainCamera.lookAt(0, 0, 0);
                 
-                // Complete threshold
+                // Animation Complete
                 if (mainCamera.position.distanceTo(targetCameraPos) < 0.1) {
                     mainCamera.position.copy(targetCameraPos);
                     isAnimatingCamera = false;
                     controls.enabled = true; 
+                    
+                    // Apply isolation ONLY after rotation finishes (if toggled on)
+                    if (isolateOnAlign) applyIsolation(activePlaneStr);
                 }
             } else {
                 controls.update();
@@ -546,7 +612,6 @@
             hudCamera.position.copy(mainCamera.position).normalize().multiplyScalar(5.5);
             hudCamera.lookAt(0, 0, 0);
 
-            // Render Layout Mapping (Safely avoiding DPR calculation bugs)
             const hudSize = getHudSize();
 
             // 1. Render Full Viewport
