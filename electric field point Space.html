@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electric Field Construction Simulation</title>
+    <style>
+        @import url('https://fonts.cdnfonts.com/css/lemon-milk');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'LEMON MILK', sans-serif;
+            touch-action: none;
+            color: #fff;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            z-index: 10;
+        }
+
+        #toggle-btn {
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            padding: 10px 20px;
+            font-family: 'LEMON MILK', sans-serif;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
+        }
+
+        #toggle-btn:active { transform: scale(0.95); }
+
+        #panel {
+            margin-top: 10px;
+            background: rgba(15, 15, 15, 0.9);
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: opacity 0.3s, transform 0.3s;
+            transform-origin: top left;
+            width: 310px;
+            box-sizing: border-box;
+        }
+
+        #panel.collapsed { opacity: 0; transform: scaleY(0); pointer-events: none; }
+
+        .control-group { display: flex; flex-direction: column; gap: 12px; }
+        .control-group label { font-size: 11px; letter-spacing: 1px; color: #aaa; }
+        
+        .highlight-label { color: #00aaff !important; font-weight: bold; font-size: 12px !important; }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #fff; cursor: pointer; margin-top: -6px;
+            box-shadow: 0 0 5px rgba(255,255,255,0.8);
+        }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #555; border-radius: 2px; }
+
+        .radio-group { display: flex; flex-direction: column; gap: 8px; font-size: 11px; }
+        .radio-group label { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #fff; }
+
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #ffffff; }
+        input:checked + .slider:before { transform: translateX(16px); background-color: #000; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-container">
+        <button id="toggle-btn">SETTINGS</button>
+        <div id="panel">
+            
+            <div class="control-group">
+                <label class="highlight-label">CHARGE CONSTRUCTION (<span id="buildVal" style="color: #fff;">1</span> / 17)</label>
+                <input type="range" id="buildSlider" min="1" max="17" step="1" value="1">
+            </div>
+
+            <hr style="border: 0.5px solid #333; width: 100%;">
+
+            <div class="control-group">
+                <div class="toggle-row">
+                    <label style="color: #fff; font-size: 11px;">SHOW 3D PLANES</label>
+                    <label class="switch">
+                        <input type="checkbox" id="planesToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <label style="color: #fff; font-size: 11px;">ISOLATE 2D FIELD ON ALIGN</label>
+                    <label class="switch">
+                        <input type="checkbox" id="isolateToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <hr style="border: 0.5px solid #333; width: 100%;">
+
+            <div class="control-group">
+                <label>FIELD LINE SETUP</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="setupType" value="continuous" checked> LONG CONTINUOUS</label>
+                    <label><input type="radio" name="setupType" value="discontinuous"> SHORT DISCONTINUOUS</label>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>CHARGES PER RING (<span id="countVal">24</span>)</label>
+                <input type="range" id="countSlider" min="4" max="60" step="4" value="24">
+            </div>
+
+            <div class="control-group">
+                <label>ARROW LENGTH</label>
+                <input type="range" id="lengthSlider" min="1.0" max="6.0" step="0.1" value="3.5">
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let renderer, mainScene, mainCamera, controls;
+        let hudScene, hudCamera, viewCube;
+        
+        let chargeMesh, chargeMat;
+        let referencePlanesGroup = new THREE.Group();
+        
+        let constructionGroup = new THREE.Group();
+        let ringsList = []; 
+        let oldScales = []; 
+        
+        let arrowDataList = []; 
+        let cubeMaterials = [];
+        
+        let currentBuildStep = 1;
+        let currentSetup = 'continuous';
+        let currentLinesCount = 24;
+        let currentArrowLength = 3.5;
+        
+        let isAnimatingCamera = false;
+        let targetCameraPos = new THREE.Vector3();
+        let activePlaneStr = null;
+        let isIsolated = false;
+
+        let showPlanes = true;
+        let isolateOnAlign = false;
+        let targetSphereOpacity = 0.0;
+        
+        const getHudSize = () => window.innerWidth < 600 ? 100 : 130;
+
+        init();
+
+        function init() {
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.autoClear = false;
+            document.body.appendChild(renderer.domElement);
+
+            mainScene = new THREE.Scene();
+            mainCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            mainCamera.position.set(10, 8, 12);
+
+            controls = new OrbitControls(mainCamera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            mainScene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const pointLight = new THREE.PointLight(0xffffff, 100);
+            pointLight.position.set(5, 5, 5);
+            mainScene.add(pointLight);
+
+            createCharge();
+            createReferencePlanes();
+            
+            mainScene.add(constructionGroup);
+            generateElectricField();
+
+            setupHUD();
+            document.fonts.ready.then(() => { updateHUDTextures(); });
+
+            setupUI();
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('pointerdown', onPointerDown);
+
+            animate();
+        }
+
+        function createCharge() {
+            const chargeGeo = new THREE.SphereGeometry(0.8, 64, 64);
+            chargeMat = new THREE.MeshPhysicalMaterial({ 
+                color: 0xaa0000, emissive: 0x440000,
+                roughness: 0.2, metalness: 0.1,
+                transparent: true, opacity: 0.0, depthWrite: false
+            });
+            chargeMesh = new THREE.Mesh(chargeGeo, chargeMat);
+            chargeMesh.visible = false;
+            mainScene.add(chargeMesh);
+        }
+
+        function createReferencePlanes() {
+            mainScene.add(referencePlanesGroup);
+            function addPlane(colorStr, rotationAxis) {
+                const group = new THREE.Group();
+                const geo = new THREE.PlaneGeometry(12, 12);
+                const mat = new THREE.MeshBasicMaterial({ color: colorStr, side: THREE.DoubleSide, transparent: true, opacity: 0.06, depthWrite: false });
+                const plane = new THREE.Mesh(geo, mat);
+                const grid = new THREE.GridHelper(12, 12, colorStr, colorStr);
+                grid.material.opacity = 0.25; grid.material.transparent = true; grid.rotation.x = Math.PI / 2;
+
+                group.add(plane); group.add(grid);
+
+                if (rotationAxis === 'y') group.rotation.y = Math.PI / 2; 
+                if (rotationAxis === 'x') group.rotation.x = Math.PI / 2; 
+                referencePlanesGroup.add(group);
+            }
+            addPlane(0x00aaff, 'z'); // XY
+            addPlane(0xff3333, 'y'); // YZ
+            addPlane(0x33ff33, 'x'); // ZX
+        }
+
+        function generateElectricField() {
+            oldScales = ringsList.map(r => r.group.scale.x);
+            
+            while(constructionGroup.children.length > 0) constructionGroup.remove(constructionGroup.children[0]);
+            arrowDataList = [];
+            ringsList = [];
+
+            // Angles to progressively fill the sphere
+            const angles = [
+                0, Math.PI/2, Math.PI/4, 3*Math.PI/4,
+                Math.PI/8, 3*Math.PI/8, 5*Math.PI/8, 7*Math.PI/8,
+                Math.PI/16, 3*Math.PI/16, 5*Math.PI/16, 7*Math.PI/16,
+                9*Math.PI/16, 11*Math.PI/16, 13*Math.PI/16, 15*Math.PI/16
+            ];
+
+            const N = currentLinesCount;
+            const dAlpha = (Math.PI * 2) / N;
+            const R = 0.8;
+            const L = currentArrowLength;
+
+            // Geometry for the point charges on the circumference
+            const pChargeGeo = new THREE.SphereGeometry(0.025, 16, 16);
+            const pChargeMatTemplate = new THREE.MeshPhysicalMaterial({ color: 0xffffff, emissive: 0xff1111, transparent: true, opacity: 1 });
+
+            for (let i = 0; i < 16; i++) {
+                let theta = angles[i];
+                let rGroup = new THREE.Group();
+                
+                // Solid wireframe ring
+                let ringGeo = new THREE.TorusGeometry(R, 0.01, 16, 100);
+                let ringMat = new THREE.MeshPhysicalMaterial({ color: 0xff4444, emissive: 0x880000, transparent: true, opacity: 1 });
+                let ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                ringMesh.rotation.y = theta;
+                rGroup.add(ringMesh);
+
+                let pointCharges = [];
+
+                // Create charges & arrows specifically aligned to THIS ring's 2D plane
+                for(let k = 0; k < N; k++) {
+                    let alpha = k * dAlpha;
+
+                    // Skip the exact top/bottom poles for all subsequent rings to prevent duplicate overlapping
+                    if (i > 0 && Math.abs(Math.cos(alpha)) < 0.001) continue;
+
+                    // 1. Calculate local 2D vector in the ring's flat plane
+                    let localDir = new THREE.Vector3(Math.cos(alpha), Math.sin(alpha), 0);
+                    // 2. Rotate to align with the ring's 3D angle
+                    let globalDir = localDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), theta);
+
+                    // Add the Point Charge exactly on the ring circumference
+                    let chargePos = globalDir.clone().multiplyScalar(R);
+                    let pMat = pChargeMatTemplate.clone();
+                    let pMesh = new THREE.Mesh(pChargeGeo, pMat);
+                    pMesh.position.copy(chargePos);
+                    rGroup.add(pMesh);
+                    pointCharges.push(pMesh);
+
+                    // Add the Electric Field arrow emerging from the point charge
+                    let arrowStart = globalDir.clone().multiplyScalar(R + 0.025);
+                    let color = 0xffffff, headW = 0.04, headL = 0.15;
+                    
+                    if (currentSetup === 'continuous') {
+                        const arrow = new THREE.ArrowHelper(globalDir, arrowStart, L, color, headL, headW);
+                        rGroup.add(arrow);
+                        arrowDataList.push({ mesh: arrow, dir: globalDir.clone() });
+                    } else {
+                        const segments = 3, stepSize = L / segments, arrLen = stepSize * 0.6;
+                        for(let s = 0; s < segments; s++) {
+                            const startR = (R + 0.025) + (s * stepSize);
+                            const arrow = new THREE.ArrowHelper(globalDir, globalDir.clone().multiplyScalar(startR), arrLen, color, 0.1, headW);
+                            rGroup.add(arrow);
+                            arrowDataList.push({ mesh: arrow, dir: globalDir.clone() });
+                        }
+                    }
+                }
+
+                let startScale = oldScales[i] !== undefined ? oldScales[i] : 0.001;
+                rGroup.scale.set(startScale, startScale, startScale);
+                
+                constructionGroup.add(rGroup);
+                ringsList.push({ 
+                    group: rGroup, 
+                    ringMesh: ringMesh, 
+                    pointCharges: pointCharges,
+                    targetScale: 0.001, 
+                    targetOpacity: 1 
+                });
+            }
+
+            updateBuildState(); 
+            if (isIsolated && activePlaneStr) applyIsolation(activePlaneStr);
+        }
+
+        function updateBuildState() {
+            targetSphereOpacity = (currentBuildStep === 17) ? 1.0 : 0.0;
+            if (currentBuildStep === 17) chargeMesh.visible = true;
+
+            for (let i = 0; i < 16; i++) {
+                let r = ringsList[i];
+                let isActive = (i < currentBuildStep || currentBuildStep === 17);
+                
+                r.targetScale = isActive ? 1.0 : 0.001;
+                // Fade out the wireframes and charges when the final solid sphere spawns
+                r.targetOpacity = (currentBuildStep === 17) ? 0.0 : 1.0; 
+            }
+        }
+
+        // --- HUD Logic ---
+        function setupHUD() {
+            hudScene = new THREE.Scene();
+            hudCamera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+            
+            const faces = [
+                { text: 'YZ', bg: '#cc0000' }, { text: 'YZ', bg: '#880000' },
+                { text: 'ZX', bg: '#00cc00' }, { text: 'ZX', bg: '#008800' },
+                { text: 'XY', bg: '#0088cc' }, { text: 'XY', bg: '#005588' } 
+            ];
+            faces.forEach(face => cubeMaterials.push(createCanvasMaterial(face.text, face.bg)));
+            viewCube = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), cubeMaterials);
+            hudScene.add(viewCube);
+        }
+
+        function createCanvasMaterial(text, bgColor) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = bgColor; ctx.fillRect(0, 0, 256, 256);
+            ctx.lineWidth = 12; ctx.strokeStyle = '#ffffff'; ctx.strokeRect(0, 0, 256, 256);
+            
+            ctx.fillStyle = '#ffffff'; ctx.font = '65px "LEMON MILK", sans-serif'; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 138); 
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return new THREE.MeshBasicMaterial({ map: texture });
+        }
+
+        function updateHUDTextures() {
+            const faces = [
+                { text: 'YZ', bg: '#cc0000' }, { text: 'YZ', bg: '#880000' },
+                { text: 'ZX', bg: '#00cc00' }, { text: 'ZX', bg: '#008800' },
+                { text: 'XY', bg: '#0088cc' }, { text: 'XY', bg: '#005588' }
+            ];
+            faces.forEach((face, i) => {
+                const newMat = createCanvasMaterial(face.text, face.bg);
+                if(cubeMaterials[i].map) cubeMaterials[i].map.dispose();
+                cubeMaterials[i].map = newMat.map;
+                cubeMaterials[i].needsUpdate = true;
+            });
+        }
+
+        function setupUI() {
+            document.getElementById('toggle-btn').addEventListener('click', () => {
+                document.getElementById('panel').classList.toggle('collapsed');
+            });
+
+            document.getElementById('buildSlider').addEventListener('input', (e) => {
+                currentBuildStep = parseInt(e.target.value);
+                document.getElementById('buildVal').innerText = currentBuildStep;
+                updateBuildState();
+            });
+
+            document.getElementById('planesToggle').addEventListener('change', (e) => {
+                showPlanes = e.target.checked;
+                referencePlanesGroup.visible = showPlanes;
+            });
+            document.getElementById('isolateToggle').addEventListener('change', (e) => {
+                isolateOnAlign = e.target.checked;
+                if (!isolateOnAlign) restoreField();
+                else if (activePlaneStr && !isAnimatingCamera) applyIsolation(activePlaneStr);
+            });
+            document.querySelectorAll('input[name="setupType"]').forEach(radio => {
+                radio.addEventListener('change', (e) => { currentSetup = e.target.value; generateElectricField(); });
+            });
+            document.getElementById('countSlider').addEventListener('input', (e) => {
+                currentLinesCount = parseInt(e.target.value);
+                document.getElementById('countVal').innerText = currentLinesCount;
+                generateElectricField();
+            });
+            document.getElementById('lengthSlider').addEventListener('input', (e) => {
+                currentArrowLength = parseFloat(e.target.value); generateElectricField();
+            });
+        }
+
+        function onPointerDown(event) {
+            if (event.target.closest('#ui-container')) return;
+
+            const hudSize = getHudSize();
+            const xInCube = event.clientX - (window.innerWidth - hudSize);
+            const yInCube = event.clientY;
+
+            if (xInCube >= 0 && xInCube <= hudSize && yInCube >= 0 && yInCube <= hudSize) {
+                const ndcX = (xInCube / hudSize) * 2 - 1, ndcY = -(yInCube / hudSize) * 2 + 1;
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), hudCamera);
+                
+                const intersects = raycaster.intersectObject(viewCube);
+                if (intersects.length > 0) { handleCubeClick(intersects[0].face.materialIndex); return; }
+            } 
+            
+            if (!isAnimatingCamera) { activePlaneStr = null; restoreField(); }
+        }
+
+        function handleCubeClick(faceIndex) {
+            const dist = 14; 
+            if (faceIndex === 0 || faceIndex === 1) { activePlaneStr = 'YZ'; targetCameraPos.set(faceIndex === 0 ? dist : -dist, 0, 0); }
+            else if (faceIndex === 2 || faceIndex === 3) { activePlaneStr = 'ZX'; targetCameraPos.set(0, faceIndex === 2 ? dist : -dist, 0); }
+            else if (faceIndex === 4 || faceIndex === 5) { activePlaneStr = 'XY'; targetCameraPos.set(0, 0, faceIndex === 4 ? dist : -dist); }
+
+            restoreField();
+            isAnimatingCamera = true; controls.enabled = false; 
+        }
+
+        function applyIsolation(planeStr) {
+            isIsolated = true;
+            if (currentBuildStep === 17) chargeMat.opacity = 0.2; 
+            chargeMat.depthWrite = false;
+
+            arrowDataList.forEach(item => {
+                const dir = item.dir; let isOnPlane = false;
+                if (planeStr === 'XY' && Math.abs(dir.z) < 0.01) isOnPlane = true;
+                if (planeStr === 'YZ' && Math.abs(dir.x) < 0.01) isOnPlane = true;
+                if (planeStr === 'ZX' && Math.abs(dir.y) < 0.01) isOnPlane = true;
+
+                if (isOnPlane) {
+                    item.mesh.visible = true;
+                    let colorCode = planeStr === 'XY' ? 0x00aaff : (planeStr === 'YZ' ? 0xff3333 : 0x33ff33);
+                    item.mesh.setColor(new THREE.Color(colorCode));
+                } else {
+                    item.mesh.visible = false; 
+                }
+            });
+        }
+
+        function restoreField() {
+            isIsolated = false;
+            if (currentBuildStep === 17) {
+                chargeMat.opacity = 1.0; 
+                chargeMat.depthWrite = true;
+            }
+            arrowDataList.forEach(item => {
+                item.mesh.visible = true; item.mesh.setColor(new THREE.Color(0xffffff));
+            });
+        }
+
+        function onWindowResize() {
+            mainCamera.aspect = window.innerWidth / window.innerHeight;
+            mainCamera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Ring scaling and fade animations
+            ringsList.forEach(r => {
+                r.group.scale.lerp(new THREE.Vector3(r.targetScale, r.targetScale, r.targetScale), 0.08);
+                r.ringMesh.material.opacity += (r.targetOpacity - r.ringMesh.material.opacity) * 0.1;
+                
+                // Fade out point charges
+                r.pointCharges.forEach(p => {
+                    p.material.opacity += (r.targetOpacity - p.material.opacity) * 0.1;
+                    p.material.depthWrite = (p.material.opacity > 0.5); // prevent depth bugs on transparency
+                });
+            });
+
+            // Solid Sphere Transition
+            chargeMat.opacity += (targetSphereOpacity - chargeMat.opacity) * 0.05;
+            if (chargeMat.opacity < 0.01) chargeMesh.visible = false;
+            else chargeMesh.visible = true;
+            if (!isIsolated && chargeMat.opacity > 0.9) chargeMat.depthWrite = true;
+
+            // Camera Ease
+            if (isAnimatingCamera) {
+                mainCamera.position.lerp(targetCameraPos, 0.08);
+                mainCamera.lookAt(0, 0, 0);
+                if (mainCamera.position.distanceTo(targetCameraPos) < 0.1) {
+                    mainCamera.position.copy(targetCameraPos);
+                    isAnimatingCamera = false; controls.enabled = true; 
+                    if (isolateOnAlign) applyIsolation(activePlaneStr);
+                }
+            } else {
+                controls.update();
+            }
+
+            hudCamera.position.copy(mainCamera.position).normalize().multiplyScalar(5.5);
+            hudCamera.lookAt(0, 0, 0);
+
+            const hudSize = getHudSize();
+
+            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            renderer.setScissorTest(false);
+            renderer.clear();
+            renderer.render(mainScene, mainCamera);
+
+            renderer.clearDepth(); 
+            renderer.setScissorTest(true);
+            renderer.setScissor(window.innerWidth - hudSize, window.innerHeight - hudSize, hudSize, hudSize);
+            renderer.setViewport(window.innerWidth - hudSize, window.innerHeight - hudSize, hudSize, hudSize);
+            renderer.render(hudScene, hudCamera);
+        }
+    </script>
+</body>
+</html>
