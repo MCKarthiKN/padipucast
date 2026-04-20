@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Padipucast</title>
+<meta name="description" content="Padipucast – Interactive physics simulations for Indian higher secondary students. Explore Motion, Vibration, and Charges visually.">
+<meta name="theme-color" content="#f8f6f1">
+<meta property="og:title" content="Padipucast">
+<meta property="og:description" content="Interactive physics simulations built for the Indian curriculum. Don't just study physics — do it.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --black: #0a0a0a;
+  --white: #f8f6f1;
+  --grey: #555;
+  --light-grey: #e8e6e1;
+  --accent: #c8a96e;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-body: 'IBM Plex Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--white);
+  color: var(--black);
+  overflow-x: hidden;
+}
+
+/* ─── NAV ─────────────────────────────────────────── */
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: var(--white);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--black);
+  z-index: 1000;
+  height: 52px;
+}
+
+.nav-item {
+  position: relative;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-right: 1px solid var(--black);
+  transition: background 0.15s ease;
+  user-select: none;
+}
+
+.nav-item:first-child { border-left: 1px solid var(--black); }
+.nav-item:hover { background: var(--black); color: var(--white); }
+
+.nav-item::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+
+/* ─── DROPDOWN ───────────────────────────────────── */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  background: var(--black);
+  color: var(--white);
+  min-width: 240px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  transform: translateX(-50%) translateY(-6px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.nav-item:hover .dropdown,
+.dropdown:hover {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dropdown-item {
+  padding: 12px 20px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  cursor: pointer;
+  transition: background 0.12s ease, padding-left 0.12s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dropdown-item::before {
+  content: '→';
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  font-size: 10px;
+  color: var(--accent);
+}
+
+.dropdown-item:hover { background: rgba(255,255,255,0.07); padding-left: 26px; }
+.dropdown-item:hover::before { opacity: 1; }
+.dropdown-item:last-child { border-bottom: none; }
+.nav-item.active-origin { background: var(--accent); color: var(--black); }
+
+/* ─── SCROLL-STORY (ORIGIN) ──────────────────────────
+   The story container is 300vh tall. The inner panel
+   is position:sticky so it locks in the viewport while
+   the user scrolls through all 300vh. JS drives 3
+   fade layers based on scroll progress:
+     Layer 0  (0–33%)  → PADIPUCAST title
+     Layer 1  (33–66%) → About Padipucast
+     Layer 2  (66–100%)→ About the Creator
+   ─────────────────────────────────────────────────── */
+#story-container {
+  position: relative;
+  height: 300vh;
+}
+
+#story-panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+  background: var(--white);
+}
+
+#story-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--light-grey) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--light-grey) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.story-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 40px;
+  opacity: 0;
+  transition: opacity 0.65s ease;
+  pointer-events: none;
+}
+
+.story-layer.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Layer 0: hero title ── */
+.hero-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: var(--grey);
+  margin-bottom: 20px;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(60px, 12vw, 110px);
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 30px;
+}
+
+.tagline-wrap {
+  position: relative;
+  height: 48px;
+  overflow: visible;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.tagline-do {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  letter-spacing: 6px;
+  color: var(--accent);
+  position: absolute;
+  top: -28px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.tagline-text {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  letter-spacing: 6px;
+  color: var(--grey);
+  text-transform: uppercase;
+  position: relative;
+  display: inline-flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.tagline-study {
+  position: relative;
+  display: inline-block;
+  transition: color 0.4s ease;
+}
+
+.tagline-study::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  height: 2px; width: 0%;
+  background: var(--black);
+  transition: width 0.5s cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.hero-scrolled .tagline-study { color: #bbb; }
+.hero-scrolled .tagline-study::after { width: 100%; }
+.hero-scrolled .tagline-do { opacity: 1; transform: translateY(0); }
+
+.scroll-hint {
+  margin-top: 60px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #bbb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: bounce 2s ease-in-out infinite;
+  will-change: transform;
+}
+
+.scroll-hint::after { content: '↓'; font-size: 14px; }
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
+}
+
+/* ── Layers 1 & 2: about panels ── */
+.story-section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: var(--grey);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.story-divider {
+  width: 60px;
+  height: 2px;
+  background: var(--black);
+  margin: 0 auto 28px;
+}
+
+.story-heading {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 5vw, 52px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 24px;
+}
+
+.story-body {
+  max-width: 560px;
+  line-height: 1.8;
+  font-size: 16px;
+  font-weight: 300;
+  color: #333;
+}
+
+/* Progress dots (right side) */
+#story-dots {
+  position: fixed;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 900;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+.story-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--light-grey);
+  border: 1px solid #bbb;
+  transition: background 0.3s ease, transform 0.3s ease;
+  cursor: pointer;
+}
+
+.story-dot.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.35);
+}
+
+/* ─── REST OF SECTIONS ──────────────────────────── */
+.section {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 80px 40px 60px;
+  border-bottom: 1px solid var(--light-grey);
+}
+
+/* ─── CONTENT CARDS SECTION ─────────────────────── */
+#content-section {
+  display: none;
+  min-height: auto;
+  padding: 100px 60px 80px;
+  border-bottom: 1px solid var(--light-grey);
+  align-items: flex-start;
+  text-align: left;
+}
+
+#content-section.visible { display: flex; }
+
+.content-header {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto 50px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--black);
+  padding-bottom: 16px;
+}
+
+.content-category-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--grey);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.content-title {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.content-close {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  padding: 8px 16px;
+  border: 1px solid var(--black);
+  transition: background 0.15s ease, color 0.15s ease;
+  text-transform: uppercase;
+}
+
+.content-close:hover { background: var(--black); color: var(--white); }
+
+.cards-grid {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1px;
+  background: var(--black);
+  border: 1px solid var(--black);
+}
+
+.card {
+  background: var(--white);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.card:hover { background: #f0ece4; }
+
+.card-image {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--light-grey);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, #ddd9d2 1px, transparent 1px),
+    linear-gradient(to bottom, #ddd9d2 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.card-image-label {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #aaa;
+  text-transform: uppercase;
+  z-index: 1;
+}
+
+.card-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.card-image img.loaded { display: block; }
+
+.card-body {
+  padding: 20px 22px 22px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-number {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+}
+
+.card-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--grey);
+  font-family: var(--font-body);
+  font-weight: 300;
+  flex: 1;
+}
+
+.card-cta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--black);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  text-transform: uppercase;
+}
+
+.card-cta::after { content: '→'; }
+.card:hover .card-cta { color: var(--accent); }
+
+/* ─── OTHER SECTIONS ─────────────────────────────── */
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: var(--grey);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.section h2 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 24px;
+}
+
+.text-block {
+  max-width: 560px;
+  line-height: 1.8;
+  font-size: 16px;
+  font-weight: 300;
+  color: #333;
+}
+
+.divider-line {
+  width: 60px;
+  height: 2px;
+  background: var(--black);
+  margin: 0 auto 24px;
+}
+
+.inspiration-list {
+  display: flex;
+  gap: 30px;
+  margin-top: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.inspiration-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 8px 18px;
+  border: 1px solid var(--black);
+}
+
+.button {
+  margin-top: 24px;
+  padding: 12px 28px;
+  border: 1px solid var(--black);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.button:hover { background: var(--black); color: var(--white); }
+
+.email-link {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  margin-top: 8px;
+  color: var(--grey);
+}
+
+.fade-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.fade-in.visible { opacity: 1; transform: translateY(0); }
+
+/* ─── SIMULATION LOADING SCREEN ──────────────────────
+   Full-screen overlay shown on simulation card click.
+   A percentage counter + thin bar fill up, then the
+   page navigates to the simulation URL.
+   ─────────────────────────────────────────────────── */
+#sim-loader {
+  position: fixed;
+  inset: 0;
+  background: var(--black);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+#sim-loader.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.loader-sim-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  margin-bottom: 48px;
+}
+
+.loader-percent {
+  font-family: var(--font-display);
+  font-size: clamp(80px, 18vw, 160px);
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1;
+  letter-spacing: -3px;
+}
+
+.loader-bar-track {
+  width: 280px;
+  height: 1px;
+  background: rgba(255,255,255,0.15);
+  margin-top: 48px;
+  position: relative;
+}
+
+.loader-bar-fill {
+  position: absolute;
+  left: 0; top: 0;
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.05s linear;
+}
+
+.loader-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 14px;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+
+<!-- ─── SIMULATION LOADING OVERLAY ────────────────────
+     Shown when a simulation card is clicked.
+     Counts 0 → 100% then navigates to the sim URL.
+     ─────────────────────────────────────────────── -->
+<div id="sim-loader">
+  <div class="loader-sim-name" id="loader-sim-name">Loading</div>
+  <div class="loader-percent" id="loader-percent">0%</div>
+  <div class="loader-bar-track">
+    <div class="loader-bar-fill" id="loader-bar-fill"></div>
+  </div>
+  <div class="loader-label">Initialising simulation</div>
+</div>
+
+<!-- ─── NAV ─────────────────────────────────────────── -->
+<nav class="nav">
+
+  <div class="nav-item" id="nav-origin" onclick="goToOrigin()">
+    Origin
+  </div>
+
+  <!-- ── To add a new concept heading, copy a nav-item
+       block below and add matching data in navData JS.  -->
+
+  <div class="nav-item" onclick="showSection('Motion')">
+    Motion
+    <div class="dropdown">
+      <!-- Add new Motion simulation dropdown items here -->
+      <div class="dropdown-item" onclick="showSection('Motion', 0); event.stopPropagation()">Velocity Simulation</div>
+      <div class="dropdown-item" onclick="showSection('Motion', 1); event.stopPropagation()">Acceleration Graph</div>
+      <div class="dropdown-item" onclick="showSection('Motion', 2); event.stopPropagation()">Projectile Motion</div>
+    </div>
+  </div>
+
+  <div class="nav-item" onclick="showSection('Vibration')">
+    Vibration
+    <div class="dropdown">
+      <!-- Add new Vibration simulation dropdown items here -->
+      <div class="dropdown-item" onclick="showSection('Vibration', 0); event.stopPropagation()">Simple Harmonic Motion</div>
+      <div class="dropdown-item" onclick="showSection('Vibration', 1); event.stopPropagation()">Spring Oscillator</div>
+    </div>
+  </div>
+
+  <div class="nav-item" onclick="showSection('Charges')">
+    Charges
+    <div class="dropdown">
+      <!-- Add new Charges simulation dropdown items here -->
+      <div class="dropdown-item" onclick="showSection('Charges', 0); event.stopPropagation()">Coulomb Law</div>
+      <div class="dropdown-item" onclick="showSection('Charges', 1); event.stopPropagation()">Electric Field</div>
+    </div>
+  </div>
+
+  <!-- ══ ADD NEW CONCEPT NAV ITEM BELOW ═══════════════
+       1. Copy this block and rename the category.
+       2. Add matching data in navData in the JS below.
+
+  <div class="nav-item" onclick="showSection('Optics')">
+    Optics
+    <div class="dropdown">
+      <div class="dropdown-item" onclick="showSection('Optics', 0); event.stopPropagation()">Refraction</div>
+      <div class="dropdown-item" onclick="showSection('Optics', 1); event.stopPropagation()">Lens Formula</div>
+    </div>
+  </div>
+  ════════════════════════════════════════════════════ -->
+
+</nav>
+
+<!-- ─── STORY PROGRESS DOTS ──────────────────────────
+     3 dots on the right edge showing which story layer
+     is currently visible. Click a dot to jump.        -->
+<div id="story-dots">
+  <div class="story-dot active" data-index="0"></div>
+  <div class="story-dot" data-index="1"></div>
+  <div class="story-dot" data-index="2"></div>
+</div>
+
+<!-- ─── SCROLL STORY (ORIGIN) ────────────────────────
+     300vh tall. Inner panel is sticky (100vh).
+     JS fades between 3 layers as user scrolls.
+     ─────────────────────────────────────────────── -->
+<div id="story-container">
+  <div id="story-panel">
+
+    <!-- Layer 0: PADIPUCAST title (shows first) -->
+    <div class="story-layer active" id="layer-0">
+      <div class="hero-label">Interactive Physics Simulations</div>
+      <h1 class="hero-title">PADIPUCAST</h1>
+      <div class="tagline-wrap">
+        <span class="tagline-do">DO</span>
+        <div class="tagline-text">
+          <span class="tagline-study">Study</span>
+          <span>Physics</span>
+        </div>
+      </div>
+      <div class="scroll-hint">scroll</div>
+    </div>
+
+    <!-- Layer 1: About Padipucast (fades in at 33% scroll) -->
+    <div class="story-layer" id="layer-1">
+      <div class="story-section-label">What is this?</div>
+      <div class="story-divider"></div>
+      <h2 class="story-heading">About Padipucast</h2>
+      <p class="story-body">
+        A collection of interactive physics simulations built around the higher secondary syllabus (Indian curriculum). Designed so you don't just read physics — you experience it.
+      </p>
+    </div>
+
+    <!-- Layer 2: About the Creator (fades in at 66% scroll) -->
+    <div class="story-layer" id="layer-2">
+      <div class="story-section-label">The Human Behind It</div>
+      <div class="story-divider"></div>
+      <h2 class="story-heading">About the Creator</h2>
+      <p class="story-body">
+        All the content here is coded by me, <strong>NC Karthikeyan</strong> — a kinesthetic learner who believes the best way to understand physics is to play with it.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ─── CONTENT CARDS (injected on nav click) ───────── -->
+<section id="content-section" class="section">
+  <div class="content-header">
+    <div>
+      <div class="content-category-label">Simulations</div>
+      <div class="content-title" id="content-title">Motion</div>
+    </div>
+    <div class="content-close" onclick="hideSection()">✕ Close</div>
+  </div>
+  <div class="cards-grid" id="cards-grid"></div>
+</section>
+
+<!-- ─── INSPIRATION ──────────────────────────────────── -->
+<section class="section">
+  <div class="section-label fade-in">Standing on shoulders of giants</div>
+  <div class="divider-line fade-in"></div>
+  <h2 class="fade-in">Inspired By</h2>
+  <p class="text-block fade-in">These projects showed me what physics education could look like.</p>
+  <div class="inspiration-list fade-in">
+    <span class="inspiration-tag">PhET</span>
+    <span class="inspiration-tag">oPhysics</span>
+    <span class="inspiration-tag">JavaLab</span>
+  </div>
+</section>
+
+<!-- ─── PERMISSIONS ──────────────────────────────────── -->
+<section class="section">
+  <div class="section-label fade-in">Open Access</div>
+  <div class="divider-line fade-in"></div>
+  <h2 class="fade-in">Permissions</h2>
+  <p class="text-block fade-in">
+    Use anything freely for learning. No restrictions whatsoever. Build on it, explore it, improve it.
+  </p>
+</section>
+
+<!-- ─── DONATIONS ────────────────────────────────────── -->
+<section class="section">
+  <div class="section-label fade-in">Keep the lights on</div>
+  <div class="divider-line fade-in"></div>
+  <h2 class="fade-in">Support the Project</h2>
+  <p class="text-block fade-in">If this helped you, consider supporting it so it can keep growing.</p>
+  <button class="button fade-in">Donate</button>
+  <div class="email-link fade-in" style="margin-top: 40px;">yourmail@gmail.com</div>
+</section>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   NAV DATA
+   ──────────────────────────────────────────────────────
+   Each key = a concept heading in the nav.
+   Each simulation needs: title, desc, img, link.
+
+   ► To add a NEW CONCEPT (e.g. "Optics"):
+       1. Add a new key here:   Optics: [ { ... }, ... ]
+       2. Copy a nav-item block in the <nav> HTML above
+          and update the category name.
+
+   ► To link a simulation: fill in `link` with the path
+     to your simulation HTML file, e.g.:
+       link: './simulations/velocity.html'
+
+   ► To add a preview image: fill `img` with the image
+     path, e.g.:  img: './previews/velocity.png'
+═══════════════════════════════════════════════════════ */
+const navData = {
+
+  /* ── MOTION ──────────────────────────────────────── */
+  Motion: [
+    {
+      title: 'Velocity Simulation',
+      desc:  'Explore how velocity changes over time in various scenarios. Visualise displacement–time graphs and understand the meaning of slope.',
+      img:   '',
+      link:  ''  // ← paste your simulation URL here when ready
+    },
+    {
+      title: 'Acceleration Graph',
+      desc:  'Visualise acceleration and understand its relationship to velocity. Watch how forces produce changes in speed and direction.',
+      img:   '',
+      link:  ''
+    },
+    {
+      title: 'Projectile Motion',
+      desc:  'Study the curved path of objects launched into the air. Decompose motion into horizontal and vertical components.',
+      img:   '',
+      link:  ''
+    },
+  ],
+
+  /* ── VIBRATION ───────────────────────────────────── */
+  Vibration: [
+    {
+      title: 'Simple Harmonic Motion',
+      desc:  'Understand oscillatory motion and its mathematical representation. See how displacement, velocity, and acceleration relate in SHM.',
+      img:   '',
+      link:  ''
+    },
+    {
+      title: 'Spring Oscillator',
+      desc:  "Explore Hooke's law and energy exchange in spring systems. Watch kinetic and potential energy transform into each other.",
+      img:   '',
+      link:  ''
+    },
+  ],
+
+  /* ── CHARGES ─────────────────────────────────────── */
+  Charges: [
+    {
+      title: 'Coulomb Law',
+      desc:  'Investigate the force between two electric charges. Vary charge magnitude and distance and watch the force change live.',
+      img:   '',
+      link:  ''
+    },
+    {
+      title: 'Electric Field',
+      desc:  'Visualise electric field lines around charged objects. Understand how field strength and direction vary in space.',
+      img:   '',
+      link:  ''
+    },
+  ],
+
+  /* ══ ADD NEW CONCEPT DATA BELOW ═════════════════════
+     Example:
+     Optics: [
+       {
+         title: 'Refraction of Light',
+         desc:  'Watch how light bends as it crosses between two media.',
+         img:   '',
+         link:  './simulations/refraction.html'
+       },
+       {
+         title: 'Lens Formula',
+         desc:  'Explore how concave and convex lenses form images.',
+         img:   '',
+         link:  './simulations/lens.html'
+       },
+     ],
+  ════════════════════════════════════════════════════ */
+};
+
+
+/* ═══════════════════════════════════════════════════════
+   SCROLL-STORY ENGINE
+   Reads scroll progress through #story-container and
+   fades in the matching layer (0, 1, or 2).
+═══════════════════════════════════════════════════════ */
+const storyContainer = document.getElementById('story-container');
+const storyPanel     = document.getElementById('story-panel');
+const layers         = document.querySelectorAll('.story-layer');
+const dotsEl         = document.querySelectorAll('.story-dot');
+let   currentLayer   = 0;
+
+function updateStory() {
+  const rect   = storyContainer.getBoundingClientRect();
+  const viewH  = window.innerHeight;
+  const totalScroll = storyContainer.offsetHeight - viewH;
+
+  // 0 = top of story in view, 1 = bottom of story reached
+  const progress = Math.max(0, Math.min(1, -rect.top / totalScroll));
+
+  const newLayer = progress < 0.33 ? 0 : progress < 0.66 ? 1 : 2;
+
+  if (newLayer !== currentLayer) {
+    layers[currentLayer].classList.remove('active');
+    dotsEl[currentLayer].classList.remove('active');
+    currentLayer = newLayer;
+    layers[currentLayer].classList.add('active');
+    dotsEl[currentLayer].classList.add('active');
+  }
+
+  // Study→Do strikethrough on first layer
+  if (progress > 0.12) storyPanel.classList.add('hero-scrolled');
+  else                  storyPanel.classList.remove('hero-scrolled');
+
+  // Show dots only while story is in viewport
+  const visible = rect.top < viewH && rect.bottom > 0;
+  document.getElementById('story-dots').style.opacity = visible ? '1' : '0';
+}
+
+window.addEventListener('scroll', updateStory, { passive: true });
+updateStory(); // run once on load
+
+
+/* ═══════════════════════════════════════════════════════
+   SIMULATION LOADING SCREEN
+   When a card is clicked, a fullscreen black overlay
+   appears with a large percentage number counting up
+   organically to 100%, then navigates to the sim URL.
+═══════════════════════════════════════════════════════ */
+const simLoader  = document.getElementById('sim-loader');
+const loaderName = document.getElementById('loader-sim-name');
+const loaderPct  = document.getElementById('loader-percent');
+const loaderBar  = document.getElementById('loader-bar-fill');
+
+function openSimulation(title, link) {
+  // Show overlay
+  loaderName.textContent = title;
+  loaderPct.textContent  = '0%';
+  loaderBar.style.width  = '0%';
+  simLoader.classList.add('active');
+
+  let pct = 0;
+
+  function tick() {
+    if (pct >= 100) {
+      loaderPct.textContent = '100%';
+      loaderBar.style.width = '100%';
+      setTimeout(() => {
+        simLoader.classList.remove('active');
+        if (link) {
+          window.location.href = link; // navigate to simulation
+        } else {
+          // Simulation not linked yet — dismiss loader
+          // Remove this block once real links are added
+          alert('"' + title + '" simulation coming soon!');
+        }
+      }, 350);
+      return;
+    }
+
+    // Jumps are large early (feels fast), slow near 100 (feels like loading)
+    const remaining = 100 - pct;
+    const maxJump   = remaining > 40 ? 16 : remaining > 15 ? 7 : 2;
+    const jump      = Math.max(1, Math.floor(Math.random() * maxJump));
+    pct = Math.min(100, pct + jump);
+
+    loaderPct.textContent = pct + '%';
+    loaderBar.style.width = pct + '%';
+
+    // Slow down near end
+    const delay = pct < 60 ? 55 : pct < 85 ? 95 : 170;
+    setTimeout(tick, delay);
+  }
+
+  tick();
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SHOW / HIDE SECTION (nav category card grid)
+═══════════════════════════════════════════════════════ */
+function showSection(category) {
+  const section = document.getElementById('content-section');
+  const title   = document.getElementById('content-title');
+  const grid    = document.getElementById('cards-grid');
+
+  title.textContent = category;
+  grid.innerHTML    = '';
+
+  navData[category].forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-image">
+        <span class="card-image-label">Image coming soon</span>
+        ${item.img ? `<img src="${item.img}" alt="${item.title}" loading="lazy" onload="this.classList.add('loaded')">` : ''}
+      </div>
+      <div class="card-body">
+        <div class="card-number">0${i + 1}</div>
+        <div class="card-title">${item.title}</div>
+        <div class="card-desc">${item.desc}</div>
+        <div class="card-cta">Open simulation</div>
+      </div>
+    `;
+    card.addEventListener('click', () => openSimulation(item.title, item.link));
+    grid.appendChild(card);
+  });
+
+  section.classList.add('visible');
+  setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+}
+
+function hideSection() {
+  document.getElementById('content-section').classList.remove('visible');
+  storyContainer.scrollIntoView({ behavior: 'smooth' });
+}
+
+function goToOrigin() {
+  hideSection();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   FADE-IN ON SCROLL (for sections after the story)
+═══════════════════════════════════════════════════════ */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const siblings = [...entry.target.parentElement.querySelectorAll('.fade-in')];
+      const delay    = siblings.indexOf(entry.target) * 80;
+      setTimeout(() => entry.target.classList.add('visible'), delay);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
