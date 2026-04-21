@@ -140,6 +140,17 @@ body {
 .dropdown-item:last-child { border-bottom: none; }
 .nav-item.active-origin { background: var(--accent); color: var(--black); }
 
+/* ── ORIGIN button — always gold ── */
+#nav-origin {
+  background: #c8a96e;
+  color: #1a3c00;
+  font-weight: 600;
+}
+#nav-origin:hover {
+  background: #b8934a;
+  color: #fff;
+}
+
 /* ─── SCROLL-STORY (ORIGIN) ──────────────────────────
    300vh tall container. The inner panel is sticky so
    it holds in viewport while user scrolls through.
@@ -687,12 +698,99 @@ body {
 }
 
 /* ─── RESPONSIVE ─────────────────────────────────────
-   Stack nav items vertically on very small screens    */
-@media (max-width: 480px) {
-  .nav { justify-content: flex-start; overflow-x: auto; }
-  .nav-item { padding: 0 14px; font-size: 10px; letter-spacing: 1px; }
+   Hamburger menu for screens < 700px               */
+
+/* Hamburger button — hidden on desktop */
+#hamburger {
+  display: none;
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 1200;
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px;
+}
+
+#hamburger span {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--black);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* X animation when open */
+#hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+#hamburger.open span:nth-child(2) { opacity: 0; }
+#hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Mobile nav drawer */
+@media (max-width: 700px) {
+  #hamburger { display: flex; }
+
+  /* Hide the nav bar items, show only as drawer */
+  .nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    overflow: hidden;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--black);
+    transition: height 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .nav.mobile-open {
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--white);
+  }
+
+  .nav-item {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--light-grey);
+    padding: 16px 20px;
+    font-size: 13px;
+    min-height: unset;
+    /* hide all items except first (Origin) by default */
+    display: none;
+  }
+
+  /* Origin always visible as the header bar */
+  #nav-origin {
+    display: flex;
+    height: 48px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--black);
+  }
+
+  /* Show all items when drawer is open */
+  .nav.mobile-open .nav-item { display: flex; }
+  .nav.mobile-open #nav-origin { height: auto; }
+
+  /* Dropdown becomes inline in mobile */
+  .nav.mobile-open .nav-item:hover .dropdown,
+  .nav.mobile-open .dropdown:hover { display: none; } /* disable hover dropdown on mobile */
+
   #content-section { padding: 80px 20px 60px; }
   .cards-grid { grid-template-columns: 1fr; }
+}
+
+/* Card gap */
+.cards-grid {
+  gap: 16px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.card {
+  border: 1px solid var(--black);
 }
 </style>
 </head>
@@ -707,6 +805,11 @@ body {
   </div>
   <div class="loader-label">Initialising simulation</div>
 </div>
+
+<!-- ─── HAMBURGER BUTTON (mobile only) ──────────────── -->
+<button id="hamburger" onclick="toggleMobileNav()" aria-label="Menu">
+  <span></span><span></span><span></span>
+</button>
 
 <!-- ─── NAV — auto-generated from navData by JS ─────
      ✦ You no longer need to edit this HTML.
@@ -835,14 +938,13 @@ const navData = {
   
 
   /* ── CHARGES ─────────────────────────────────────── */
-  ChARGES: [
+  Charges: [
     {
-      title: 'Line charges',
+      title: 'Line Charges',
       desc:  'Charge are have Superiority Complex',
-      img:   './thumbnail/line charge distribution.png',
+      img:   './thumbnail/line-charge-distribution.png',  /* ← renamed: no spaces in filename! */
       link:  'https://padipucast.vercel.app/Electric%20field%20and%20vector%20cancellation.html'
     },
-    
     {
       title: 'Electric Flux',
       desc:  "Don't make the Charge escape!",
@@ -976,16 +1078,30 @@ function openSimulation(title, link) {
 
 /* ═══════════════════════════════════════════════════════
    SHOW / HIDE SECTION
+   ─ showSection(category)       → shows ALL sims in that category
+   ─ showSection(category, i)    → shows ONLY simulation i (dropdown click)
 ═══════════════════════════════════════════════════════ */
-function showSection(category) {
+function showSection(category, simIndex) {
   const section = document.getElementById('content-section');
   const title   = document.getElementById('content-title');
   const grid    = document.getElementById('cards-grid');
 
-  title.textContent = category;
-  grid.innerHTML    = '';
+  // Determine which items to render
+  const allItems = navData[category] || [];
+  const items    = (simIndex !== undefined)
+    ? [allItems[simIndex]]   // only the clicked simulation
+    : allItems;              // entire category
 
-  navData[category].forEach((item, i) => {
+  // Update header title
+  title.textContent = (simIndex !== undefined)
+    ? allItems[simIndex].title   // show sim name when single
+    : category;                  // show category name when all
+
+  grid.innerHTML = '';
+
+  items.forEach((item, i) => {
+    if (!item) return;
+    const displayNum = (simIndex !== undefined) ? (simIndex + 1) : (i + 1);
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
@@ -995,7 +1111,7 @@ function showSection(category) {
           : '<span class="card-image-label">Thumbnail coming soon</span>'}
       </div>
       <div class="card-body">
-        <div class="card-number">0${i + 1}</div>
+        <div class="card-number">0${displayNum}</div>
         <div class="card-title">${item.title}</div>
         <div class="card-desc">${item.desc}</div>
         <div class="card-cta">Open simulation</div>
@@ -1006,6 +1122,8 @@ function showSection(category) {
   });
 
   section.classList.add('visible');
+  // Close mobile nav if open
+  closeMobileNav();
   setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
 }
 
@@ -1016,7 +1134,21 @@ function hideSection() {
 
 function goToOrigin() {
   hideSection();
+  closeMobileNav();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── Mobile nav toggle ── */
+function toggleMobileNav() {
+  const nav = document.getElementById('main-nav');
+  const btn = document.getElementById('hamburger');
+  nav.classList.toggle('mobile-open');
+  btn.classList.toggle('open');
+}
+
+function closeMobileNav() {
+  document.getElementById('main-nav').classList.remove('mobile-open');
+  document.getElementById('hamburger').classList.remove('open');
 }
 
 
