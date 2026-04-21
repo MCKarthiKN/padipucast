@@ -498,16 +498,17 @@ body {
   z-index: 1;
 }
 
+/* AFTER */
 .card-image img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
-
-.card-image img.loaded { display: block; }
+.card-image img.loaded { opacity: 1; }
 
 .card-body {
   padding: 20px 22px 22px;
