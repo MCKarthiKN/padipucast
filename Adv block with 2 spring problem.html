@@ -1,16 +1,338 @@
 <!DOCTYPE html>
 <html lang="en">
-
-  <head>
+<head>
     <meta charset="UTF-8">
-    <title>Untitled</title>
-    <link rel="stylesheet" href="./style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Coil Springs & Solid Rolling Disc</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #87CEEB; /* Sky blue background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            background: rgba(30, 30, 35, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            color: white;
+            z-index: 10;
+        }
+        h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 2px solid #e74c3c; padding-bottom: 8px;}
+        .control-group { margin-bottom: 15px; }
+        label { font-size: 0.9rem; color: #ccc; display: flex; justify-content: space-between; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #e74c3c; }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s, transform 0.1s;
+        }
+        button:hover { background-color: #c0392b; }
+        button:active { transform: scale(0.98); }
+        
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+    </style>
+    <!-- Include Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
 
-  </head>
-    
-  <body>
-  
-    
-  </body>
-  
+    <div id="controls">
+        <h2>Physics Properties</h2>
+        <div class="control-group">
+            <label>Mass (M) <span id="mass-val">10</span> kg</label>
+            <input type="range" id="mass" min="1" max="50" value="10">
+        </div>
+        <div class="control-group">
+            <label>Spring Constant (k) <span id="k-val">50</span> N/m</label>
+            <input type="range" id="k" min="1" max="50" value="50">
+        </div>
+        <div class="control-group">
+            <label>Initial Velocity (v₀) <span id="v0-val">40</span> m/s</label>
+            <input type="range" id="v0" min="10" max="80" value="40">
+        </div>
+        <button id="btn-push">Give Push (v₀)</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        // --------------------------------------------------------
+        // 1. SCENE & RENDERER SETUP
+        // --------------------------------------------------------
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xa0c4ff);
+        scene.fog = new THREE.FogExp2(0xa0c4ff, 0.003);
+
+        // Adjust camera angle to easily see the side and face of the disc
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(90, 45, 110); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+        orbitControls.target.set(30, 15, 0);
+        orbitControls.enableDamping = true;
+        orbitControls.maxPolarAngle = Math.PI / 2 - 0.02; // Prevent going fully below ground
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(50, 80, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.top = 100;
+        dirLight.shadow.camera.bottom = -100;
+        dirLight.shadow.camera.left = -100;
+        dirLight.shadow.camera.right = 100;
+        scene.add(dirLight);
+
+        // --------------------------------------------------------
+        // 2. PROCEDURAL BRICK TEXTURE GENERATOR
+        // --------------------------------------------------------
+        function createBrickTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#b0b0b0'; // Mortar color
+            ctx.fillRect(0, 0, 512, 512);
+            
+            const brickW = 120, brickH = 50, padding = 8;
+            for (let y = 0; y < 512; y += brickH + padding) {
+                const isOffset = (Math.floor(y / (brickH + padding)) % 2 === 0);
+                const startX = isOffset ? -(brickW / 2) : 0;
+                
+                for (let x = startX; x < 512; x += brickW + padding) {
+                    const colorVal = 130 + Math.random() * 40;
+                    ctx.fillStyle = `rgb(${colorVal}, 60, 50)`;
+                    ctx.fillRect(x, y, brickW, brickH);
+                }
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(2, 1);
+            return texture;
+        }
+
+        // --------------------------------------------------------
+        // 3. 3D GEOMETRIES
+        // --------------------------------------------------------
+        const R = 15;         // Solid Disc radius
+        const discThickness = 4; // Thickness of the disc
+        const d = 22;         // Half-length of the axle (rod)
+
+        // A. Ground
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(300, 200),
+            new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.8 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // B. Brick Wall
+        const wall = new THREE.Mesh(
+            new THREE.BoxGeometry(10, 60, 120),
+            new THREE.MeshStandardMaterial({ map: createBrickTexture(), roughness: 0.9 })
+        );
+        wall.position.set(-5, 30, 0); // Wall face is exactly at x=0
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        scene.add(wall);
+
+        // Wall Anchors
+        const anchorGeo = new THREE.CylinderGeometry(1.5, 1.5, 4, 16).rotateZ(Math.PI / 2);
+        const anchorMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8 });
+        
+        const anchor1 = new THREE.Mesh(anchorGeo, anchorMat);
+        anchor1.position.set(0, R, -d);
+        scene.add(anchor1);
+        
+        const anchor2 = new THREE.Mesh(anchorGeo, anchorMat);
+        anchor2.position.set(0, R, d);
+        scene.add(anchor2);
+
+        // C. Rolling System (Disc + Axle through COM)
+        const systemGroup = new THREE.Group();
+        scene.add(systemGroup);
+
+        // The Axle (passes perfectly through the COM along the Z-axis)
+        const axle = new THREE.Mesh(
+            new THREE.CylinderGeometry(1.2, 1.2, d * 2 + 4, 32).rotateX(Math.PI / 2),
+            new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.2 })
+        );
+        axle.castShadow = true;
+        systemGroup.add(axle);
+
+        // The Solid Disc (Faces outward towards the Z-axis)
+        const disc = new THREE.Mesh(
+            new THREE.CylinderGeometry(R, R, discThickness, 64).rotateX(Math.PI / 2),
+            new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.6 })
+        );
+        disc.castShadow = true;
+        systemGroup.add(disc);
+
+        // Visual Marker on the disc (to easily see rotation)
+        const marker = new THREE.Mesh(
+            new THREE.BoxGeometry(R, discThickness + 0.5, 3), // Slightly wider than disc thickness
+            new THREE.MeshStandardMaterial({ color: 0xecf0f1 })
+        );
+        marker.position.set(R / 2, 0, 0); // Offset from center
+        systemGroup.add(marker);
+
+
+        // --------------------------------------------------------
+        // 4. COIL SPRINGS GENERATOR
+        // --------------------------------------------------------
+        class SpringCurve extends THREE.Curve {
+            constructor(startPoint, endPoint, radius, coils) {
+                super();
+                this.startPoint = startPoint;
+                this.endPoint = endPoint;
+                this.radius = radius;
+                this.coils = coils;
+            }
+            getPoint(t, optionalTarget = new THREE.Vector3()) {
+                const dir = new THREE.Vector3().subVectors(this.endPoint, this.startPoint);
+                const distance = dir.length();
+                dir.normalize();
+
+                const centerPos = this.startPoint.clone().add(dir.clone().multiplyScalar(t * distance));
+                const angle = t * this.coils * Math.PI * 2;
+                
+                // Spiraling logic around the main X axis
+                const offsetY = Math.cos(angle) * this.radius;
+                const offsetZ = Math.sin(angle) * this.radius;
+
+                return optionalTarget.set(centerPos.x, centerPos.y + offsetY, centerPos.z + offsetZ);
+            }
+        }
+
+        let spring1Mesh, spring2Mesh;
+        const springMat = new THREE.MeshStandardMaterial({ color: 0x95a5a6, metalness: 0.6, roughness: 0.4 });
+
+        function updateSprings(xPos) {
+            const W1 = new THREE.Vector3(0, R, -d);
+            const W2 = new THREE.Vector3(0, R, d);
+            const P1 = new THREE.Vector3(xPos, R, -d);
+            const P2 = new THREE.Vector3(xPos, R, d);
+
+            const curve1 = new SpringCurve(W1, P1, 2.5, 15);
+            const curve2 = new SpringCurve(W2, P2, 2.5, 15);
+
+            if (spring1Mesh) {
+                spring1Mesh.geometry.dispose();
+                spring2Mesh.geometry.dispose();
+            } else {
+                spring1Mesh = new THREE.Mesh(new THREE.TubeGeometry(curve1, 100, 0.6, 8, false), springMat);
+                spring2Mesh = new THREE.Mesh(new THREE.TubeGeometry(curve2, 100, 0.6, 8, false), springMat);
+                spring1Mesh.castShadow = true;
+                spring2Mesh.castShadow = true;
+                scene.add(spring1Mesh);
+                scene.add(spring2Mesh);
+            }
+
+            spring1Mesh.geometry = new THREE.TubeGeometry(curve1, 100, 0.6, 8, false);
+            spring2Mesh.geometry = new THREE.TubeGeometry(curve2, 100, 0.6, 8, false);
+        }
+
+        // --------------------------------------------------------
+        // 5. PHYSICS STATE & LOOP
+        // --------------------------------------------------------
+        const L0 = 50; // Rest length of the spring
+        let state = {
+            x: L0,     // Initial position
+            v: 0,      // Velocity
+            theta: 0   // Rotation angle
+        };
+
+        const uiMass = document.getElementById('mass');
+        const uiK = document.getElementById('k');
+        const uiV0 = document.getElementById('v0');
+        
+        uiMass.addEventListener('input', (e) => document.getElementById('mass-val').innerText = e.target.value);
+        uiK.addEventListener('input', (e) => document.getElementById('k-val').innerText = e.target.value);
+        uiV0.addEventListener('input', (e) => document.getElementById('v0-val').innerText = e.target.value);
+
+        document.getElementById('btn-push').addEventListener('click', () => {
+            state.v = parseFloat(uiV0.value); // Apply specific initial velocity
+        });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05); // Cap delta time to prevent physics explosions if tab is inactive
+
+            const M = parseFloat(uiMass.value);
+            const K = parseFloat(uiK.value);
+
+            // Moment of Inertia for a Solid Disc = 1/2 M R^2
+            // Effective mass for pure rolling: M_eff = M + I/R^2 = M + (0.5*M) = 1.5 M
+            const Meff = 1.5 * M;
+            
+            // Total Spring Force (2 springs pull towards x = 0 with rest length L0)
+            const F_spring = -2 * K * (state.x - L0);
+            
+            // Light damping (friction) to make it settle gradually over time
+            const F_damp = -0.5 * state.v; 
+
+            // Calculate linear acceleration
+            const a = (F_spring + F_damp) / Meff;
+
+            // Update Velocity & Position
+            state.v += a * dt;
+            state.x += state.v * dt;
+
+            // Pure Rolling Angular calculation
+            // Moving forward (+x) causes clockwise rotation (-theta)
+            state.theta = -(state.x - L0) / R;
+
+            // Apply transforms to the 3D Group
+            systemGroup.position.set(state.x, R, 0);
+            systemGroup.rotation.z = state.theta;
+
+            // Update Spring visuals to stretch perfectly to the axle ends
+            updateSprings(state.x);
+
+            orbitControls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Initialize and Start
+        updateSprings(state.x);
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
 </html>
