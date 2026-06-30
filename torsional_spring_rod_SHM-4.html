@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Torsional SHM — Padipucast</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.cdnfonts.com/css/lemon-milk" rel="stylesheet">
+
+<style>
+  :root{
+    --display:'LEMON MILK','Inter',system-ui,sans-serif;
+    --text:#28303a;
+    --muted:#707984;
+    --faint:#a3abb4;
+    --line:rgba(40,52,64,0.11);
+    --line2:rgba(40,52,64,0.18);
+    --surface:rgba(255,255,255,0.7);
+    --accent:#2f74c0;
+    --accent-bright:#3f8ad6;
+    --teal:#2aa7a0;
+    --red:#e23b34;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;color:var(--text);touch-action:none;
+    font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased;
+    background:radial-gradient(135% 105% at 50% 0%, #fbfcfe 0%, #eef1f5 46%, #e2e7ed 100%);}
+  #app{position:fixed;inset:0}
+  canvas#scene{display:block;width:100%;height:100%;cursor:grab}
+  .mono{font-family:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace}
+  .disp{font-family:var(--display);letter-spacing:.02em}
+
+  /* ---------------- compact columns ---------------- */
+  .col{position:absolute;top:14px;display:flex;flex-direction:column;gap:11px;
+    width:clamp(228px,21vw,262px);max-height:calc(100dvh - 28px);
+    overflow-y:auto;overscroll-behavior:contain;
+    scrollbar-width:thin;scrollbar-color:rgba(40,52,64,.2) transparent}
+  .col::-webkit-scrollbar{width:6px}.col::-webkit-scrollbar-thumb{background:rgba(40,52,64,.18);border-radius:6px}
+  #left{left:14px}#right{right:14px}
+
+  .card{background:var(--surface);backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4);
+    border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 10px 30px rgba(40,52,70,.12), inset 0 1px 0 rgba(255,255,255,.65);flex:none}
+
+  .head{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;cursor:pointer;user-select:none}
+  .head .t{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  .head .t .eyebrow{display:block;font-size:8px;letter-spacing:.2em;color:var(--accent);margin-bottom:2px}
+  .chev{width:22px;height:22px;border:1px solid var(--line2);border-radius:7px;background:rgba(255,255,255,.5);
+    color:var(--muted);display:grid;place-items:center;font-size:10px;transition:transform .3s,background .15s;flex:none}
+  .head:hover .chev{background:rgba(47,116,192,.12);color:var(--accent)}
+  .card.collapsed .chev{transform:rotate(-90deg)}
+
+  .body{padding:0 13px 13px;max-height:80dvh;overflow-y:auto;opacity:1;
+    transition:max-height .38s cubic-bezier(.22,1,.36,1),opacity .24s,padding .28s}
+  .card.collapsed .body{max-height:0;padding-top:0;padding-bottom:0;opacity:0;overflow:hidden;pointer-events:none}
+  .lead{font-size:11px;color:var(--muted);line-height:1.5;margin:0 0 13px}
+  .lead b{color:var(--accent);font-weight:600}
+
+  .ctrl{margin-bottom:11px}
+  .ctrl.feature{background:rgba(47,116,192,.045);border:1px solid var(--line);border-radius:10px;padding:9px 10px 10px}
+  .ctrl .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:7px}
+  .ctrl label{font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text);font-family:var(--display)}
+  .valwrap{display:flex;align-items:center;gap:6px}
+  .ctrl .val{font-size:12px;color:var(--accent);min-width:36px;text-align:right;font-weight:600;font-family:'JetBrains Mono',monospace}
+  .ctrl .val .u{color:var(--faint);font-size:9px;margin-left:1px;font-weight:400}
+  .step{width:21px;height:21px;flex:none;border-radius:6px;border:1px solid var(--line2);background:rgba(255,255,255,.6);
+    color:var(--text);font-size:13px;line-height:1;cursor:pointer;display:grid;place-items:center;transition:.12s}
+  .step:hover{background:rgba(47,116,192,.14);border-color:var(--accent)}
+  .step:active{transform:translateY(1px)}
+
+  .numwrap{display:flex;align-items:center;gap:5px}
+  .numbox{width:56px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;color:var(--accent);
+    background:rgba(255,255,255,.72);border:1px solid var(--line2);border-radius:7px;padding:4px 6px;text-align:right;outline:none;transition:.13s}
+  .numbox:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,116,192,.2)}
+  .numwrap .u{color:var(--faint);font-size:9px}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:3px;margin:1px 0;
+    background:linear-gradient(90deg,var(--accent) 0%,var(--accent) var(--p,40%),rgba(40,52,64,0.12) var(--p,40%));outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;
+    border:2px solid var(--accent);box-shadow:0 1px 4px rgba(40,52,70,.3);cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--accent);cursor:pointer}
+  input[type=range]:focus-visible{box-shadow:0 0 0 3px rgba(47,116,192,.26)}
+
+  .btnrow{display:flex;gap:6px;margin-top:3px}
+  button.act{flex:1;font-family:var(--display);font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--text);background:rgba(255,255,255,.55);border:1px solid var(--line2);border-radius:9px;padding:8px 4px;cursor:pointer;transition:.14s}
+  button.act:hover{background:rgba(47,116,192,0.12);border-color:var(--accent)}
+  button.act:active{transform:translateY(1px)}
+  button.act.primary{background:rgba(47,116,192,0.14);border-color:rgba(47,116,192,.5);color:var(--accent)}
+  button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(47,116,192,.26)}
+
+  #scope{width:100%;height:96px;display:block;border-radius:9px;background:#f6f8fb;border:1px solid var(--line)}
+  .legend{display:flex;gap:13px;margin:7px 1px 11px;font-size:9px;color:var(--muted)}
+  .legend .k{display:inline-flex;align-items:center;gap:5px}
+  .swatch{width:13px;border-top-width:2px;border-top-style:solid;display:inline-block}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 13px}
+  .stat{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px dotted var(--line);padding-bottom:2px}
+  .stat .lbl{font-size:9.5px;color:var(--muted)}
+  .stat .num{font-size:11.5px}
+  .stat .num .u{color:var(--faint);font-size:9px;margin-left:1px}
+
+  #energy{margin-top:11px}
+  .ebar{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .ebar .tag{font-size:8.5px;width:22px;color:var(--muted);font-family:var(--display)}
+  .track{flex:1;height:5px;border-radius:5px;background:rgba(40,52,64,0.08);overflow:hidden}
+  .fill{height:100%;width:0%;border-radius:5px}
+  .fill.ke{background:linear-gradient(90deg,var(--accent),var(--accent-bright))}
+  .fill.pe{background:linear-gradient(90deg,#3bbdb6,var(--teal))}
+
+  .formula{margin-top:12px;text-align:center;font-size:12.5px;display:flex;justify-content:center;gap:16px;flex-wrap:wrap}
+  .insight{margin-top:10px;padding:8px 10px;border-radius:9px;background:rgba(47,116,192,0.05);
+    border:1px solid var(--line2);font-size:10px;line-height:1.5;color:var(--muted)}
+  .insight b{color:var(--accent);font-weight:600}
+
+  #timerNum{font-family:var(--display);font-size:38px;font-weight:600;text-align:center;color:var(--accent);line-height:1;margin:2px 0 5px}
+  #timerNum .u{font-size:15px;color:var(--faint);margin-left:3px}
+  #timerCap{text-align:center;font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-family:var(--display)}
+  #timerCard.done #timerNum{animation:blink 1.3s ease-in-out infinite alternate}
+  #timerCard.done #timerCap{color:var(--red)}
+  @keyframes blink{from{color:var(--red)}to{color:rgba(226,59,52,0.15)}}
+
+  .hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:9.5px;color:var(--muted);
+    background:rgba(255,255,255,.7);padding:5px 13px;border-radius:20px;pointer-events:none;font-family:var(--display);letter-spacing:.05em;
+    box-shadow:0 4px 14px rgba(40,52,70,.1)}
+
+  @media (max-width:1100px){.col{width:clamp(214px,30vw,250px)}}
+  @media (max-width:680px){
+    .col{width:auto;left:11px;right:11px;max-height:42dvh}
+    #left{top:11px}#right{top:auto;bottom:11px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}#timerCard.done #timerNum{animation:none;color:var(--red)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div class="hint">drag the rod to disturb it · drag empty space to orbit</div>
+
+  <div id="left" class="col">
+    <div class="card" id="controls">
+      <div class="head"><span class="t disp"><span class="eyebrow">Rotational SHM</span>Parameters</span><span class="chev">▾</span></div>
+      <div class="body">
+        <p class="lead">Grab the rod, pull it aside and <b>let go</b> — the stopwatch times one full period.</p>
+        <div class="ctrl feature">
+          <div class="row"><label>Spring k</label>
+            <span class="numwrap"><input class="numbox" id="kN" type="number" min="0" step="0.1" value="5" inputmode="decimal"><span class="u">N/m</span></span></div>
+          <input type="range" id="k" min="0" max="10" step="0.1" value="5" />
+        </div>
+        <div class="ctrl feature">
+          <div class="row"><label>Length l</label>
+            <span class="valwrap"><button class="step" data-id="l" data-d="-0.05">−</button>
+              <span class="val"><span id="lV">1.60</span><span class="u">m</span></span>
+              <button class="step" data-id="l" data-d="0.05">+</button></span></div>
+          <input type="range" id="l" min="1.0" max="2.4" step="0.05" value="1.6" />
+        </div>
+        <div class="ctrl feature">
+          <div class="row"><label>Mass m</label>
+            <span class="numwrap"><input class="numbox" id="mN" type="number" min="0" step="0.1" value="2" inputmode="decimal"><span class="u">kg</span></span></div>
+          <input type="range" id="m" min="0" max="10" step="0.1" value="2" />
+        </div>
+        <div class="ctrl">
+          <div class="row"><label>Release θ₀</label><span class="val"><span id="aV">20</span><span class="u">°</span></span></div>
+          <input type="range" id="a" min="2" max="80" step="1" value="20" />
+        </div>
+        <div class="ctrl">
+          <div class="row"><label>Damping</label><span class="val"><span id="cV">0.00</span></span></div>
+          <input type="range" id="c" min="0" max="0.6" step="0.02" value="0" />
+        </div>
+        <div class="btnrow">
+          <button class="act primary" id="play">Pause</button>
+          <button class="act" id="release">Release</button>
+          <button class="act" id="reset">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="right" class="col">
+    <div class="card" id="timerCard">
+      <div class="head"><span class="t disp"><span class="eyebrow">Stopwatch</span>Period Timer</span><span class="chev">▾</span></div>
+      <div class="body">
+        <div id="timerNum"><span id="tVal">0.000</span><span class="u">s</span></div>
+        <div id="timerCap">drag the rod to disturb it</div>
+      </div>
+    </div>
+    <div class="card" id="readout">
+      <div class="head"><span class="t disp"><span class="eyebrow">Live</span>Measurement</span><span class="chev">▾</span></div>
+      <div class="body">
+        <canvas id="scope" width="640" height="192"></canvas>
+        <div class="legend">
+          <span class="k"><span class="swatch" style="border-color:var(--accent)"></span>θ(t) actual</span>
+          <span class="k"><span class="swatch" style="border-color:#9aa2ab;border-top-style:dashed"></span>ideal SHM</span>
+        </div>
+        <div class="grid">
+          <div class="stat"><span class="lbl">angle θ</span><span class="num mono"><span id="oTheta">0.0</span><span class="u">°</span></span></div>
+          <div class="stat"><span class="lbl">ang. vel.</span><span class="num mono"><span id="oOmega">0.00</span></span></div>
+          <div class="stat"><span class="lbl">T theory</span><span class="num mono"><span id="oTth">0.000</span><span class="u">s</span></span></div>
+          <div class="stat"><span class="lbl">amplitude</span><span class="num mono"><span id="oAmp">0</span><span class="u">°</span></span></div>
+        </div>
+        <div id="energy">
+          <div class="ebar"><span class="tag">KE</span><div class="track"><div class="fill ke" id="bKE"></div></div></div>
+          <div class="ebar"><span class="tag">PE</span><div class="track"><div class="fill pe" id="bPE"></div></div></div>
+        </div>
+        <div class="formula"><span id="eqW"></span><span id="eqT"></span></div>
+        <div class="insight">The <b>l² cancels</b> between torque and inertia — period depends only on <b>k</b> and <b>m</b>.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   TORSIONAL SHM — vertical plane · Padipucast · grabbable rod
+   Rod starts at rest. Disturb it (drag & release / Release btn);
+   stopwatch times exactly one period, then blinks red.
+   ω=√(6k/m), T=2π√(m/6k) (l cancels). True-geometry integration.
+   ============================================================ */
+(function(){
+'use strict';
+const THREE=window.THREE;
+
+const P={k:5,m:2.0,l:1.6,theta0:20*Math.PI/180,c:0.0};
+const D=1.45, GRAB_LIMIT=1.4;
+let theta=0, omega=0, running=true, grabbing=false;
+
+/* ---------------- renderer / scene ---------------- */
+const canvas=document.getElementById('scene');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setClearColor(0x000000,0);
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0xe8edf2,0.028);
+function studioEnv(){
+  const c=document.createElement('canvas');c.width=512;c.height=256;const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,256);
+  g.addColorStop(0,'#ffffff');g.addColorStop(0.4,'#dfe6ee');g.addColorStop(0.6,'#cdd6e0');g.addColorStop(1,'#aab4c0');
+  x.fillStyle=g;x.fillRect(0,0,512,256);
+  const r=x.createRadialGradient(256,30,8,256,30,200);
+  r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=r;x.fillRect(0,0,512,150);
+  const t=new THREE.CanvasTexture(c);t.mapping=THREE.EquirectangularReflectionMapping;return t;
+}
+scene.environment=studioEnv();
+
+const camera=new THREE.PerspectiveCamera(42,1,0.1,100);
+const orbit={az:-0.28,el:0.18,r:6.2,tgt:new THREE.Vector3(0,0,0)};
+function applyCamera(){
+  const ce=Math.cos(orbit.el),se=Math.sin(orbit.el);
+  camera.position.set(orbit.tgt.x+orbit.r*ce*Math.sin(orbit.az),orbit.tgt.y+orbit.r*se,orbit.tgt.z+orbit.r*ce*Math.cos(orbit.az));
+  camera.lookAt(orbit.tgt);
+}
+
+/* ---------------- lighting ---------------- */
+scene.add(new THREE.HemisphereLight(0xffffff,0xc8d0d8,0.7));
+const key=new THREE.DirectionalLight(0xffffff,0.9);
+key.position.set(3,4.8,5);key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);key.shadow.bias=-0.0006;
+key.shadow.camera.near=0.5;key.shadow.camera.far=22;
+key.shadow.camera.left=-4;key.shadow.camera.right=4;key.shadow.camera.top=4;key.shadow.camera.bottom=-4;
+scene.add(key);
+const fill=new THREE.DirectionalLight(0xdfe8f2,0.4);fill.position.set(-4,2,3);scene.add(fill);
+
+/* ---------------- backdrop ---------------- */
+const back=new THREE.Mesh(new THREE.PlaneGeometry(16,12),new THREE.MeshStandardMaterial({color:0xdde3ea,metalness:0,roughness:1}));
+back.position.set(0,0,-0.72);back.receiveShadow=true;scene.add(back);
+const gridXY=new THREE.GridHelper(8,24,0xc2cad3,0xd6dce3);gridXY.rotation.x=Math.PI/2;gridXY.position.z=-0.71;scene.add(gridXY);
+
+/* ---------------- labels ---------------- */
+function makeLabel(text,color){
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+  x.fillStyle=color;x.font="600 80px 'LEMON MILK', Inter, Arial, sans-serif";x.textAlign='center';x.textBaseline='middle';x.fillText(text,64,68);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  s.scale.set(0.38,0.38,0.38);return s;
+}
+
+/* ---------------- pivot ---------------- */
+const steel=new THREE.MeshStandardMaterial({color:0x9aa1a9,metalness:0.85,roughness:0.3});
+const axle=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.62,24),steel);axle.rotation.x=Math.PI/2;axle.castShadow=true;scene.add(axle);
+const hub=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.10,28),new THREE.MeshStandardMaterial({color:0x6b7178,metalness:0.7,roughness:0.4}));
+hub.rotation.x=Math.PI/2;hub.position.z=0.07;hub.castShadow=true;scene.add(hub);
+const oDot=new THREE.Mesh(new THREE.SphereGeometry(0.045,18,18),new THREE.MeshStandardMaterial({color:0x2f74c0,metalness:0.1,roughness:0.4}));
+oDot.position.z=0.13;scene.add(oDot);
+const oLabel=makeLabel('O','#3a4250');oLabel.position.set(0.2,-0.02,0.2);scene.add(oLabel);
+
+/* ---------------- engraved rod face ---------------- */
+const faceCanvas=document.createElement('canvas');faceCanvas.width=256;faceCanvas.height=1024;
+const faceTex=new THREE.CanvasTexture(faceCanvas);faceTex.anisotropy=8;
+function drawRodFace(){
+  const W=256,H=1024,x=faceCanvas.getContext('2d');
+  const g=x.createLinearGradient(0,0,W,0);g.addColorStop(0,'#aab1b9');g.addColorStop(0.5,'#dfe3e8');g.addColorStop(1,'#aab1b9');
+  x.fillStyle=g;x.fillRect(0,0,W,H);
+  x.globalAlpha=0.05;x.strokeStyle='#fff';for(let i=0;i<W;i+=3){x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke();}x.globalAlpha=1;
+  x.save();x.translate(W/2,H/2);x.rotate(-Math.PI/2);
+  x.font="600 104px 'LEMON MILK', Arial, sans-serif";x.textAlign='center';x.textBaseline='middle';
+  x.fillStyle='rgba(255,255,255,0.55)';x.fillText('PADIPUCAST',0,3);
+  x.fillStyle='rgba(38,44,52,0.9)';x.fillText('PADIPUCAST',0,0);
+  x.restore();faceTex.needsUpdate=true;
+}
+drawRodFace();
+
+/* ---------------- rod ---------------- */
+const rodSide=new THREE.MeshStandardMaterial({color:0xc3c8ce,metalness:0.7,roughness:0.4});
+const rodFace=new THREE.MeshStandardMaterial({map:faceTex,metalness:0.4,roughness:0.5});
+const rodGroup=new THREE.Group();scene.add(rodGroup);
+let rodMesh=null,labelA=null,labelB=null;
+function buildRod(){
+  if(rodMesh){rodGroup.remove(rodMesh);rodMesh.geometry.dispose();}
+  if(labelA)rodGroup.remove(labelA);if(labelB)rodGroup.remove(labelB);
+  rodMesh=new THREE.Mesh(new THREE.BoxGeometry(0.22,P.l,0.09),[rodSide,rodSide,rodSide,rodSide,rodFace,rodSide]);
+  rodMesh.castShadow=true;rodMesh.receiveShadow=true;rodGroup.add(rodMesh);
+  const h=P.l/2;
+  labelA=makeLabel('A','#3a4250');labelA.position.set(0,h+0.17,0.12);rodGroup.add(labelA);
+  labelB=makeLabel('B','#3a4250');labelB.position.set(0,-h-0.17,0.12);rodGroup.add(labelB);
+}
+buildRod();
+if(document.fonts&&document.fonts.load){document.fonts.load("600 104px 'LEMON MILK'").then(()=>document.fonts.ready).then(drawRodFace).catch(()=>{});}
+
+/* ---------------- rails + brackets ---------------- */
+const railMat=new THREE.MeshStandardMaterial({color:0x868d96,metalness:0.55,roughness:0.45});
+const railR=new THREE.Mesh(new THREE.BoxGeometry(0.06,2.7,0.5),railMat),railL=new THREE.Mesh(new THREE.BoxGeometry(0.06,2.7,0.5),railMat);
+railR.position.set(D+0.18,0,0);railL.position.set(-D-0.18,0,0);railR.castShadow=railL.castShadow=railR.receiveShadow=railL.receiveShadow=true;scene.add(railR,railL);
+const brkMat=new THREE.MeshStandardMaterial({color:0x767d86,metalness:0.6,roughness:0.4});
+function makeBracket(){const b=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.30,0.34),brkMat);b.castShadow=true;b.receiveShadow=true;scene.add(b);return b;}
+const brkA=makeBracket(),brkB=makeBracket();
+function placeBrackets(){const h=P.l/2;brkA.position.set(D+0.07,h,0);brkB.position.set(-D-0.07,-h,0);}
+placeBrackets();
+
+/* ---------------- springs ---------------- */
+function helixPoints(start,end,coils,radius){
+  const dir=end.clone().sub(start);const len=dir.length();if(len<1e-6)return[start.clone(),end.clone()];
+  dir.multiplyScalar(1/len);
+  const up=Math.abs(dir.y)<0.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);
+  const u=new THREE.Vector3().crossVectors(dir,up).normalize();
+  const v=new THREE.Vector3().crossVectors(dir,u).normalize();
+  const N=140,lead=0.13,pts=[];
+  for(let i=0;i<=N;i++){const t=i/N;let r=radius;
+    if(t<lead)r=radius*(t/lead);else if(t>1-lead)r=radius*((1-t)/lead);
+    const ang=t*coils*Math.PI*2,along=t*len;
+    pts.push(start.clone().addScaledVector(dir,along).addScaledVector(u,Math.cos(ang)*r).addScaledVector(v,Math.sin(ang)*r));}
+  return pts;
+}
+class Spring{
+  constructor(){this.mat=new THREE.MeshStandardMaterial({color:0xbfc5cc,metalness:0.92,roughness:0.22});
+    this.mesh=new THREE.Mesh(new THREE.BufferGeometry(),this.mat);this.mesh.castShadow=true;scene.add(this.mesh);}
+  update(start,end){const pts=helixPoints(start,end,9,0.10);
+    const geo=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),180,0.02,8,false);
+    this.mesh.geometry.dispose();this.mesh.geometry=geo;}
+}
+const springA=new Spring(),springB=new Spring();
+
+/* ---------------- geometry / physics ---------------- */
+function endA(t){const h=P.l/2;return new THREE.Vector3(-Math.sin(t)*h,Math.cos(t)*h,0);}
+function endB(t){const h=P.l/2;return new THREE.Vector3(Math.sin(t)*h,-Math.cos(t)*h,0);}
+function supA(){return new THREE.Vector3(D,P.l/2,0);}
+function supB(){return new THREE.Vector3(-D,-P.l/2,0);}
+function springTorque(t){let tau=0;
+  for(const[r,S] of [[endA(t),supA()],[endB(t),supB()]]){
+    const vec=S.clone().sub(r);const L=vec.length();if(L<1e-6)continue;
+    const F=vec.multiplyScalar(P.k*(L-D)/L);tau+=r.x*F.y-r.y*F.x;}
+  return tau;}
+const inertia=()=>Math.max(P.m,1e-3)*P.l*P.l/12;
+function potential(t){return 0.25*P.k*P.l*P.l*t*t;}   // ½·(kl²/2)·θ²  — matches the linear model
+const theoryT=()=>(P.k>0&&P.m>0)?2*Math.PI*Math.sqrt(P.m/(6*P.k)):Infinity;
+const theoryW=()=>(P.k>0&&P.m>0)?Math.sqrt(6*P.k/P.m):0;
+
+/* ---------------- one-period stopwatch ---------------- */
+let simClock=0;
+const timer={state:'idle',t0:0,elapsed:0,last:0,cross:0,amp:0,armed:false};
+const timerCard=document.getElementById('timerCard'),tVal=document.getElementById('tVal'),tCap=document.getElementById('timerCap');
+function timerIdle(msg){timer.state='idle';timerCard.classList.remove('done');tCap.textContent=msg;}
+function armTimer(){                                  // call at the instant of release (rod at rest, an extreme)
+  timer.state='running';timer.t0=simClock;timer.elapsed=0;timer.last=0;timer.cross=0;
+  timer.amp=Math.abs(theta);timer.armed=true;
+  P.theta0=timer.amp;setSlider('a',Math.min(80,Math.round(timer.amp*180/Math.PI)),v=>v.toFixed(0));
+  timerCard.classList.remove('done');tCap.textContent='timing one period…';tVal.textContent='0.000';
+}
+function timerOnStep(){
+  if(timer.state!=='running')return;
+  const s=Math.sign(omega);
+  if(s!==0){
+    if(timer.last!==0&&s!==timer.last){timer.cross++;
+      if(timer.cross>=2){timer.state='done';timer.elapsed=simClock-timer.t0;tVal.textContent=timer.elapsed.toFixed(3);
+        timerCard.classList.add('done');tCap.textContent='one period complete';}}
+    timer.last=s;
+  }
+  if(timer.state==='running')timer.elapsed=simClock-timer.t0;
+}
+
+const scope=document.getElementById('scope'),sctx=scope.getContext('2d');
+const WIN=3.4;let trace=[];
+
+/* ---------------- pointer: orbit empty space, grab the rod ---------------- */
+const raycaster=new THREE.Raycaster(),ndc=new THREE.Vector2(),planeZ=new THREE.Plane(new THREE.Vector3(0,0,1),0);
+let mode=null,grabSide=1,px=0,py=0;
+function setNDC(t){const r=canvas.getBoundingClientRect();ndc.x=((t.clientX-r.left)/r.width)*2-1;ndc.y=-((t.clientY-r.top)/r.height)*2+1;}
+function planePoint(t){setNDC(t);raycaster.setFromCamera(ndc,camera);const p=new THREE.Vector3();return raycaster.ray.intersectPlane(planeZ,p)?p:null;}
+function updateGrab(t){
+  const Q=planePoint(t);if(!Q)return;
+  let target=Math.atan2(-Q.x,Q.y)-(grabSide<0?Math.PI:0);
+  while(target-theta>Math.PI)target-=2*Math.PI;
+  while(target-theta<-Math.PI)target+=2*Math.PI;
+  theta=Math.max(-GRAB_LIMIT,Math.min(GRAB_LIMIT,target));
+}
+function pDown(e){
+  if(e.target.closest('.col'))return;
+  const t=e.touches?e.touches[0]:e;
+  setNDC(t);raycaster.setFromCamera(ndc,camera);
+  const hit=rodMesh?raycaster.intersectObject(rodMesh,false):[];
+  if(hit.length){
+    mode='grab';grabbing=true;omega=0;
+    const local=rodMesh.worldToLocal(hit[0].point.clone());grabSide=local.y>=0?1:-1;
+    rodFace.emissive.setHex(0x2f74c0);rodFace.emissiveIntensity=0.18;
+    timerIdle('release to time one period');tVal.textContent='0.000';
+    canvas.style.cursor='grabbing';updateGrab(t);
+  }else{mode='orbit';px=t.clientX;py=t.clientY;canvas.style.cursor='move';}
+}
+function pMove(e){
+  const t=e.touches?e.touches[0]:e;
+  if(mode==='orbit'){orbit.az-=(t.clientX-px)*0.006;orbit.el+=(t.clientY-py)*0.006;
+    orbit.el=Math.max(-0.25,Math.min(1.2,orbit.el));px=t.clientX;py=t.clientY;if(e.cancelable)e.preventDefault();}
+  else if(mode==='grab'){updateGrab(t);if(e.cancelable)e.preventDefault();}
+}
+function pUp(){
+  if(mode==='grab'){grabbing=false;omega=0;rodFace.emissive.setHex(0x000000);armTimer();running=true;syncPlay();}
+  mode=null;canvas.style.cursor='grab';
+}
+canvas.addEventListener('mousedown',pDown);window.addEventListener('mousemove',pMove);window.addEventListener('mouseup',pUp);
+canvas.addEventListener('touchstart',pDown,{passive:true});canvas.addEventListener('touchmove',pMove,{passive:false});window.addEventListener('touchend',pUp);
+canvas.addEventListener('wheel',e=>{orbit.r=Math.max(3.6,Math.min(12,orbit.r+e.deltaY*0.0045));e.preventDefault();},{passive:false});
+
+/* ---------------- loop ---------------- */
+let prevMs=performance.now();
+function frame(now){
+  let dt=(now-prevMs)/1000;prevMs=now;dt=Math.min(dt,0.05);
+  if(running&&!grabbing&&dt>0){
+    const SUB=8,h=dt/SUB,I=inertia();
+    for(let s=0;s<SUB;s++){const alpha=(-(P.k*P.l*P.l/2)*theta-P.c*omega)/I;omega+=alpha*h;theta+=omega*h;simClock+=h;timerOnStep();}
+    trace.push({t:simClock,theta});while(trace.length&&trace[0].t<simClock-WIN)trace.shift();
+  }else if(grabbing){trace.push({t:simClock,theta});while(trace.length&&trace[0].t<simClock-WIN)trace.shift();}
+  rodGroup.rotation.z=theta;
+  springA.update(endA(theta),supA());springB.update(endB(theta),supB());
+  applyCamera();renderer.render(scene,camera);
+  drawScope();updateHUD();
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- HUD ---------------- */
+let hudT=0;
+function updateHUD(){
+  const n=performance.now();if(n-hudT<70)return;hudT=n;
+  document.getElementById('oTheta').textContent=(theta*180/Math.PI).toFixed(1);
+  document.getElementById('oOmega').textContent=omega.toFixed(2);
+  const _T=theoryT();document.getElementById('oTth').textContent=isFinite(_T)?_T.toFixed(3):'—';
+  document.getElementById('oAmp').textContent=timer.armed?Math.round(timer.amp*180/Math.PI):0;
+  const KE=0.5*inertia()*omega*omega,PE=potential(theta),tot=Math.max(KE+PE,1e-6);
+  document.getElementById('bKE').style.width=(100*KE/tot)+'%';
+  document.getElementById('bPE').style.width=(100*PE/tot)+'%';
+  if(timer.state==='running')tVal.textContent=timer.elapsed.toFixed(3);
+}
+function drawScope(){
+  const w=scope.width,h=scope.height,mid=h/2;sctx.clearRect(0,0,w,h);
+  sctx.strokeStyle='rgba(40,52,64,0.12)';sctx.lineWidth=1;sctx.beginPath();sctx.moveTo(0,mid);sctx.lineTo(w,mid);sctx.stroke();
+  const amp=Math.max(timer.amp,P.theta0,0.05),yOf=th=>mid-(th/(amp*1.25))*(mid-10);
+  sctx.setLineDash([4,5]);sctx.strokeStyle='rgba(40,52,64,0.13)';
+  sctx.beginPath();sctx.moveTo(0,yOf(amp));sctx.lineTo(w,yOf(amp));sctx.moveTo(0,yOf(-amp));sctx.lineTo(w,yOf(-amp));sctx.stroke();sctx.setLineDash([]);
+  const t0=simClock-WIN,xOf=t=>((t-t0)/WIN)*w;
+  if(timer.armed&&theoryW()>0){                       // phase-locked ideal SHM from release
+    sctx.setLineDash([5,5]);sctx.strokeStyle='rgba(120,130,142,0.75)';sctx.lineWidth=1.4;sctx.beginPath();
+    const wth=theoryW();let started=false;
+    for(let i=0;i<=180;i++){const t=t0+WIN*i/180;if(t<timer.t0)continue;
+      const th=timer.amp*Math.cos(wth*(t-timer.t0)),x=xOf(t),y=yOf(th);started?sctx.lineTo(x,y):sctx.moveTo(x,y);started=true;}
+    sctx.stroke();sctx.setLineDash([]);
+  }
+  sctx.strokeStyle='#2f74c0';sctx.lineWidth=2;sctx.beginPath();let st=false;
+  for(const p of trace){const x=xOf(p.t),y=yOf(p.theta);st?sctx.lineTo(x,y):sctx.moveTo(x,y);st=true;}
+  sctx.stroke();
+}
+
+/* ---------------- UI ---------------- */
+function setFill(el){const mn=+el.min,mx=+el.max;el.style.setProperty('--p',((el.value-mn)/(mx-mn)*100)+'%');}
+function setSlider(id,val,fmt){const el=document.getElementById(id),out=document.getElementById(id+'V');el.value=val;setFill(el);if(out)out.textContent=fmt(+val);}
+function bind(id,fmt,fn){const el=document.getElementById(id),out=document.getElementById(id+'V');setFill(el);
+  el.addEventListener('input',()=>{out.textContent=fmt(+el.value);setFill(el);fn(+el.value);});}
+function bindPair(slId,nbId,apply){
+  const sl=document.getElementById(slId),nb=document.getElementById(nbId);setFill(sl);
+  sl.addEventListener('input',()=>{const v=+sl.value;nb.value=v;apply(v);setFill(sl);});
+  nb.addEventListener('input',()=>{let v=parseFloat(nb.value);if(isNaN(v))return;if(v<0){v=0;nb.value=0;}
+    apply(v);sl.value=Math.min(+sl.max,Math.max(+sl.min,v));setFill(sl);});
+}
+bindPair('k','kN',v=>{P.k=v;refreshTheory();});
+bindPair('m','mN',v=>{P.m=v;refreshTheory();});
+bind('l',v=>v.toFixed(2),v=>{P.l=v;buildRod();placeBrackets();});
+bind('a',v=>v.toFixed(0),v=>{P.theta0=v*Math.PI/180;});
+bind('c',v=>v.toFixed(2),v=>{P.c=v;});
+
+document.querySelectorAll('.step').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();
+  const el=document.getElementById(b.dataset.id),d=+b.dataset.d;
+  el.value=Math.min(+el.max,Math.max(+el.min,+(+el.value+d).toFixed(4)));el.dispatchEvent(new Event('input'));}));
+
+const playBtn=document.getElementById('play');
+function syncPlay(){playBtn.textContent=running?'Pause':'Play';playBtn.classList.toggle('primary',running);}
+playBtn.addEventListener('click',e=>{e.stopPropagation();running=!running;syncPlay();prevMs=performance.now();});
+document.getElementById('release').addEventListener('click',e=>{e.stopPropagation();
+  theta=P.theta0;omega=0;trace=[];running=true;syncPlay();armTimer();});
+document.getElementById('reset').addEventListener('click',e=>{e.stopPropagation();
+  theta=0;omega=0;trace=[];timer.armed=false;timer.amp=0;timer.state='idle';timer.elapsed=0;
+  tVal.textContent='0.000';timerIdle('drag the rod to disturb it');});
+
+document.querySelectorAll('.head').forEach(hd=>hd.addEventListener('click',()=>hd.parentElement.classList.toggle('collapsed')));
+if(window.matchMedia('(max-width:680px)').matches){document.getElementById('readout').classList.add('collapsed');}
+
+function renderMath(){if(!window.katex)return;const put=(id,t)=>{try{katex.render(t,document.getElementById(id),{throwOnError:false});}catch(e){}};
+  put('eqW','\\omega=\\sqrt{\\tfrac{6k}{m}}');put('eqT','T=2\\pi\\sqrt{\\tfrac{m}{6k}}');}
+function refreshTheory(){const T=theoryT();document.getElementById('oTth').textContent=isFinite(T)?T.toFixed(3):'—';}
+
+function resize(){const w=window.innerWidth,h=window.innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+window.addEventListener('resize',resize);resize();
+if(document.readyState!=='loading')renderMath();else window.addEventListener('DOMContentLoaded',renderMath);
+window.addEventListener('load',renderMath);
+refreshTheory();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
