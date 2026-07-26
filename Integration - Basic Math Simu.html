@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Calculus Integrations - Thermodynamic Welding Physics</title>
+    <link href="https://fonts.cdnfonts.com/css/lemon-milk" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #ffaa00;
+            --bg-color: #050608;
+            --panel-bg: rgba(20, 22, 28, 0.85);
+            --text-color: #ffffff;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            font-family: 'LEMON MILK', sans-serif; background-color: var(--bg-color);
+            color: var(--text-color); letter-spacing: 1px; -webkit-tap-highlight-color: transparent;
+        }
+
+        #bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+
+        .fade-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+            opacity: 0; visibility: hidden; z-index: 10;
+        }
+        .fade-layer.active { opacity: 1; visibility: visible; }
+
+        #start-screen {
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: radial-gradient(circle at center, #11141c 0%, var(--bg-color) 100%); z-index: 20;
+        }
+        h1 { margin-bottom: 40px; font-weight: normal; text-align: center; padding: 0 20px; font-size: 2rem;}
+
+        .cards-container { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; padding: 20px; }
+        .card {
+            width: 200px; height: 260px; background: #1c1e26; border-radius: 16px; cursor: pointer;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8); border: 2px solid transparent; position: relative;
+        }
+        .card:hover {
+            transform: translateY(-15px) scale(1.05);
+            border-color: var(--accent); box-shadow: 0 15px 40px rgba(255, 170, 0, 0.3);
+        }
+
+        .diagram { width: 100px; height: 100px; margin-bottom: 20px; position: relative; }
+        .diag-rod { background: linear-gradient(90deg, #5c6c7d, #2c343c); height: 25px; width: 110px; border-radius: 12px; margin-top: 35px; box-shadow: 0 0 15px rgba(255, 170, 0, 0.2);}
+        .diag-disc { background: repeating-radial-gradient(circle, #5c6c7d, #5c6c7d 10px, #1c1e26 10px, #1c1e26 12px); border-radius: 50%; border: 2px solid #5c6c7d; width: 90px; height: 90px; box-shadow: 0 0 15px rgba(255, 170, 0, 0.2);}
+        .diag-sphere { background: radial-gradient(circle at 30% 30%, #7d8b99, #2c343c); border-radius: 50%; width: 90px; height: 90px; box-shadow: inset -10px -10px 20px rgba(0,0,0,0.5), 0 0 15px rgba(255, 170, 0, 0.2); }
+        .diag-sphere::after, .diag-sphere::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-sizing: border-box;
+            border: 3px dotted rgba(255, 255, 255, 0.4); border-radius: 50%;
+        }
+        .diag-sphere::after { transform: scale(0.98) rotateX(65deg); }
+        .diag-sphere::before { transform: scale(0.98) rotateY(65deg); }
+
+        #ui-container { z-index: 5; pointer-events: none; }
+        .interactive { pointer-events: auto; }
+        #header { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; }
+
+        button.btn-back {
+            padding: 12px 24px; background: #333942; color: white; border: none; border-radius: 8px;
+            cursor: pointer; font-size: 0.9rem; font-family: 'LEMON MILK', sans-serif; transition: background 0.3s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 1px solid #5c6c7d;
+        }
+        button.btn-back:hover { background: #5c6c7d; }
+        #formula {
+            background: rgba(0,0,0,0.7); padding: 12px; border-radius: 8px; backdrop-filter: blur(5px);
+            font-size: 1rem; color: var(--accent); text-transform: none; letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,170,0,0.5); border: 1px solid rgba(255,170,0,0.2);
+        }
+
+        #controls-panel {
+            position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 600px;
+            background: var(--panel-bg); backdrop-filter: blur(10px); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8); display: flex; flex-direction: column; overflow: hidden;
+        }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 25px; cursor: pointer; background: rgba(0,0,0,0.3); font-size: 0.9rem; }
+        .panel-content { padding: 0 25px 25px 25px; display: flex; flex-direction: column; gap: 15px; }
+        .thickness-toggles { display: flex; justify-content: center; gap: 20px; margin-top: 15px;}
+        .radio-container { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; }
+        .slider-wrapper { text-align: center; width: 100%; margin-top: 10px; }
+        .slider-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: #888; margin-top: 5px; }
+        #slider-val { color: var(--accent); font-size: 1.2rem; display: block; margin-bottom: 5px; text-shadow: 0 0 15px var(--accent); }
+        
+        .slider { -webkit-appearance: none; width: 100%; height: 10px; border-radius: 5px; background: linear-gradient(90deg, #333 0%, #ff5500 50%, #ffcc00 100%); outline: none; margin-top: 5px; cursor: pointer; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5); }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 20px #ffffff; border: 3px solid #ffcc00; transition: transform 0.1s;}
+        .slider::-webkit-slider-thumb:active { transform: scale(1.2); }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.5rem; }
+            #controls-panel { width: 100%; bottom: 0; border-radius: 20px 20px 0 0; }
+            .cards-container { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="fade-layer active">
+        <h1>Thermodynamic Integration</h1>
+        <div class="cards-container">
+            <div class="card" onclick="selectShape('rod')">
+                <div class="diagram diag-rod"></div><h2>Rod Thickness (dx)</h2>
+            </div>
+            <div class="card" onclick="selectShape('disc')">
+                <div class="diagram diag-disc"></div><h2>Disc Area (dr)</h2>
+            </div>
+            <div class="card" onclick="selectShape('sphere')">
+                <div class="diagram diag-sphere"></div><h2>Shell Volume (dr)</h2>
+            </div>
+        </div>
+    </div>
+
+    <div id="ui-container" class="fade-layer">
+        <div id="header" class="interactive">
+            <button class="btn-back" onclick="goBack()">&#8592; MENU</button>
+            <div id="formula"></div>
+        </div>
+        <div id="controls-panel" class="interactive">
+            <div class="panel-header"><span>Thermodynamic Welding Sequence</span></div>
+            <div class="panel-content" id="panel-body">
+                <div class="thickness-toggles">
+                    <label class="radio-container"><input type="radio" name="size" value="observable" checked onchange="handleSizeChange()"> Observable Sheets</label>
+                    <label class="radio-container"><input type="radio" name="size" value="infinitesimal" onchange="handleSizeChange()"> Infinitesimal dr/dx</label>
+                </div>
+                <div class="slider-wrapper">
+                    <span id="slider-val">0%</span>
+                    <input type="range" min="0" max="100" value="0" class="slider" id="integrateSlider" oninput="handleSliderChange()">
+                    <div class="slider-labels"><span>Origin State</span><span>Cooled Welded Solid</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="bg"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // Core System State Variables
+        let currentShape = null, viewSize = 'observable', steps = 20; 
+        let targetPerc = 0, currentPerc = 0, lastFloorIndex = -1; 
+        
+        let scene, camera, renderer, controls, activeGroup = new THREE.Group();
+        let meshes =[]; 
+        let weldFlash; 
+
+        // ----------------------------------------------------
+        // THERMODYNAMIC COOLING MATERIALS (NEW)
+        // ----------------------------------------------------
+        
+        // Layer 1: Actively welding / Flying component (Molten White-Yellow)
+        const matYellow = new THREE.MeshStandardMaterial({ 
+            color: 0xffffaa, emissive: 0xffaa00, emissiveIntensity: 2.0, transparent: true, opacity: 1, side: THREE.DoubleSide, metalness: 0.1, roughness: 0.2 
+        });
+
+        // Layer 2: Cooling Phase 1 (Sizzling Orange)
+        const matOrange = new THREE.MeshStandardMaterial({ 
+            color: 0xff8800, emissive: 0xff4400, emissiveIntensity: 1.2, transparent: true, opacity: 0.98, side: THREE.DoubleSide, metalness: 0.3, roughness: 0.4 
+        });
+
+        // Layer 3: Cooling Phase 2 (Cherry Red Hot)
+        const matRed = new THREE.MeshStandardMaterial({ 
+            color: 0xff0000, emissive: 0x990000, emissiveIntensity: 0.5, transparent: true, opacity: 0.95, side: THREE.DoubleSide, metalness: 0.5, roughness: 0.6 
+        });
+
+        // Layer 4 & below: Completely Cooled Metal (Graphite Dark Steel)
+        const matCooled = new THREE.MeshStandardMaterial({ 
+            color: 0x2a303c, emissive: 0x000000, metalness: 0.8, roughness: 0.35, transparent: true, opacity: 0.90, side: THREE.DoubleSide 
+        });
+
+        // Physics Particle Engines arrays
+        let sparks, molten, smoke, trails;
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+            scene.fog = new THREE.FogExp2(0x050608, 0.015); // Adds smoke darkness
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.querySelector('#bg'), antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            // Lighting adapted to make cooled dark steel gleam beautifully
+            scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+            let dirLight = new THREE.DirectionalLight(0xffffff, 1.5); 
+            dirLight.position.set(10, 30, 15); scene.add(dirLight);
+
+            let backLight = new THREE.DirectionalLight(0xaaccff, 0.5); // Subdued blue rim light
+            backLight.position.set(-15, -10, -20); scene.add(backLight);
+
+            weldFlash = new THREE.PointLight(0x7df9ff, 0, 40); scene.add(weldFlash);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05; scene.add(activeGroup);
+
+            sparks = createSystem(4000, 1.2, generateTexture('spark'), THREE.AdditiveBlending);
+            trails = createSystem(2000, 1.0, generateTexture('trail'), THREE.AdditiveBlending);
+            molten = createSystem(1500, 1.8, generateTexture('molten'), THREE.NormalBlending);
+            smoke  = createSystem(1000, 8.0, generateTexture('smoke'), THREE.NormalBlending);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        // --- PARTICLE GENERATORS ---
+        function generateTexture(type) {
+            let canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
+            let ctx = canvas.getContext('2d'); let grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            if(type === 'spark') { grad.addColorStop(0,'rgba(255,255,255,1)'); grad.addColorStop(0.2,'rgba(100,220,255,1)'); grad.addColorStop(1,'rgba(0,0,0,0)'); }
+            if(type === 'trail') { grad.addColorStop(0,'rgba(255,255,255,0.8)'); grad.addColorStop(0.4,'rgba(255,170,0,0.4)'); grad.addColorStop(1,'rgba(0,0,0,0)'); }
+            if(type === 'molten'){ grad.addColorStop(0,'rgba(255,255,255,1)'); grad.addColorStop(0.3,'rgba(255,80,0,1)'); grad.addColorStop(1,'rgba(0,0,0,0)'); }
+            if(type === 'smoke') { grad.addColorStop(0,'rgba(200,200,200,0.5)'); grad.addColorStop(0.5,'rgba(100,100,100,0.2)'); grad.addColorStop(1,'rgba(0,0,0,0)'); }
+            ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(32,32,32,0,Math.PI*2); ctx.fill();
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createSystem(maxPts, pSize, tex, blendMode) {
+            let geo = new THREE.BufferGeometry();
+            let pPos = new Float32Array(maxPts * 3); let pCol = new Float32Array(maxPts * 3);
+            for(let i=0; i<maxPts; i++) { pPos[i*3+1] = -9999; } 
+            geo.setAttribute('position', new THREE.BufferAttribute(pPos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+            let mat = new THREE.PointsMaterial({ size: pSize, map: tex, vertexColors: true, transparent: true, blending: blendMode, depthWrite: false });
+            let mesh = new THREE.Points(geo, mat); scene.add(mesh);
+            return { mesh, geo, pos: pPos, col: pCol, vel: Array.from({length: maxPts}, () => new THREE.Vector3()), life: new Float32Array(maxPts), idx: 0, max: maxPts };
+        }
+
+        function explodeWeldEffects(posVec) {
+            weldFlash.position.copy(posVec); weldFlash.intensity = 15.0; 
+
+            for(let i=0; i<25; i++) {
+                sparks.idx = (sparks.idx + 1) % sparks.max; let pId = sparks.idx, x3 = pId * 3;
+                sparks.pos[x3]=posVec.x; sparks.pos[x3+1]=posVec.y; sparks.pos[x3+2]=posVec.z;
+                sparks.vel[pId].set((Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5, (Math.random()-0.5)*1.5); sparks.life[pId] = 1.0;
+                sparks.col[x3]=0.8; sparks.col[x3+1]=1.0; sparks.col[x3+2]=1.0; 
+            }
+            for(let i=0; i<12; i++) {
+                molten.idx = (molten.idx + 1) % molten.max; let pId = molten.idx, x3 = pId * 3;
+                molten.pos[x3]=posVec.x+(Math.random()-0.5)*0.2; molten.pos[x3+1]=posVec.y; molten.pos[x3+2]=posVec.z+(Math.random()-0.5)*0.2;
+                molten.vel[pId].set((Math.random()-0.5)*0.3, Math.random()*0.4 - 0.1, (Math.random()-0.5)*0.3); molten.life[pId] = 1.0;
+                molten.col[x3]=1.0; molten.col[x3+1]=0.8; molten.col[x3+2]=0.2; 
+            }
+            for(let i=0; i<6; i++) {
+                smoke.idx = (smoke.idx + 1) % smoke.max; let pId = smoke.idx, x3 = pId * 3;
+                smoke.pos[x3]=posVec.x+(Math.random()-0.5)*0.5; smoke.pos[x3+1]=posVec.y; smoke.pos[x3+2]=posVec.z+(Math.random()-0.5)*0.5;
+                smoke.vel[pId].set((Math.random()-0.5)*0.06, Math.random()*0.1 + 0.05, (Math.random()-0.5)*0.06); smoke.life[pId] = 1.0;
+                smoke.col[x3]=0.6; smoke.col[x3+1]=0.6; smoke.col[x3+2]=0.6; 
+            }
+        }
+
+        function emitSweepTrail(posVec) {
+            trails.idx = (trails.idx + 1) % trails.max; let pId = trails.idx, x3 = pId * 3;
+            trails.pos[x3] = posVec.x; trails.pos[x3+1] = posVec.y; trails.pos[x3+2] = posVec.z;
+            trails.vel[pId].set(0,0,0); trails.life[pId] = 0.5;
+            trails.col[x3] = 1.0; trails.col[x3+1] = 0.6; trails.col[x3+2] = 0.0; // Glowing Orange/Yellow trails
+        }
+
+        function selectShape(type) {
+            document.getElementById('start-screen').classList.remove('active');
+            currentShape = type; viewSize = document.querySelector('input[name="size"]:checked').value;
+            setTimeout(() => { resetViewParams(); buildShape(); updateFormulaUI(); document.getElementById('ui-container').classList.add('active'); }, 300);
+        }
+        function goBack() {
+            document.getElementById('ui-container').classList.remove('active');
+            setTimeout(() => { document.getElementById('start-screen').classList.add('active'); meshes.forEach(m => activeGroup.remove(m)); meshes =[]; currentShape = null; }, 300);
+        }
+
+        function handleSizeChange() { viewSize = document.querySelector('input[name="size"]:checked').value; buildShape(); }
+        function handleSliderChange() { targetPerc = parseInt(document.getElementById('integrateSlider').value); document.getElementById('slider-val').innerText = targetPerc + '%'; }
+        
+        function resetViewParams() {
+            document.getElementById('integrateSlider').value = 0; targetPerc = 0; currentPerc = 0;
+            document.getElementById('slider-val').innerText = '0%'; lastFloorIndex = -1;
+            controls.target.set(0,0,0);
+            if(currentShape === 'rod') camera.position.set(0, -2, 24);
+            if(currentShape === 'disc') camera.position.set(0, -12, 18);
+            if(currentShape === 'sphere') camera.position.set(16, 6, 16);
+        }
+        
+        function updateFormulaUI() {
+            let el = document.getElementById('formula');
+            if(currentShape === 'rod') el.innerHTML = "L = &int; dx ";
+            if(currentShape === 'disc') el.innerHTML = "A = &int; 2&pi;r &cdot; dr";
+            if(currentShape === 'sphere') el.innerHTML = "V = &int; 4&pi;r&sup2; &cdot; dr";
+        }
+
+        function buildShape() {
+            meshes.forEach(m => activeGroup.remove(m)); meshes =[];
+            steps = (viewSize === 'observable') ? 20 : 120; lastFloorIndex = -1; 
+            
+            for (let i = 0; i < steps; i++) {
+                let mesh;
+                if (currentShape === 'rod') {
+                    let L = 16, dx = L / steps;
+                    mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, dx, 32), matCooled); mesh.rotation.z = Math.PI / 2;
+                    mesh.userData.target = new THREE.Vector3((-L/2) + (i*dx) + (dx/2), 0, 0);
+                    mesh.userData.start = new THREE.Vector3(mesh.userData.target.x, 15, 15);
+                    mesh.userData.cp = new THREE.Vector3(mesh.userData.start.x + 8, 25, 2); 
+                } 
+                else if (currentShape === 'disc') {
+                    let maxR = 9, dr = maxR / steps, inR = i*dr, outR = (i+1)*dr;
+                    mesh = new THREE.Mesh(new THREE.RingGeometry(inR, outR, 64), matCooled);
+                    mesh.userData.target = new THREE.Vector3(0,0,0); mesh.userData.start = new THREE.Vector3(0,0,25);
+                    mesh.userData.cp = new THREE.Vector3(8, 8, 15); 
+                } 
+                else { 
+                    let dr = 8.5 / steps, r = (i+1)*dr;
+                    mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 48, 24, 0, Math.PI*1.5, 0, Math.PI), matCooled);
+                    mesh.userData.target = new THREE.Vector3(0,0,0); mesh.userData.start = new THREE.Vector3(15,8,-5);
+                    mesh.userData.cp = new THREE.Vector3(10, 15, 5); 
+                }
+                mesh.visible = false; meshes.push(mesh); activeGroup.add(mesh);
+            }
+            if(currentShape === 'sphere') { activeGroup.rotation.y = -Math.PI/4; activeGroup.rotation.x = 0.15; }
+            else { activeGroup.rotation.y = 0; activeGroup.rotation.x = 0; }
+        }
+
+        // KINEMATIC & THERMODYNAMIC LOOP
+        function animate() {
+            requestAnimationFrame(animate); controls.update();
+            weldFlash.intensity *= 0.85;
+
+            let diff = targetPerc - currentPerc;
+            if(Math.abs(diff) > 0.05) currentPerc += diff * 0.12; else currentPerc = targetPerc;
+
+            let currentIndex = (currentPerc / 100) * steps;
+            let currentFloor = Math.floor(currentIndex) - 1;
+
+            if(currentFloor > lastFloorIndex && currentFloor >= 0 && currentFloor < steps) {
+                if(currentShape === 'rod') {
+                    let j = meshes[currentFloor].userData.target.clone();
+                    j.x -= (16/steps)/2; 
+                    explodeWeldEffects(j);
+                } 
+                else if (currentShape === 'disc') {
+                    let radius = (currentFloor+1) * (9/steps); 
+                    for(let r=0; r<6; r++){ explodeWeldEffects(new THREE.Vector3(Math.cos(r)*radius, Math.sin(r)*radius, 0)); }
+                    weldFlash.position.set(0,0,0); weldFlash.intensity = 20; 
+                } 
+                else if (currentShape === 'sphere') {
+                    let r = (currentFloor+1) * (8.5/steps);
+                    for(let s=0; s<8; s++){ 
+                        let t = Math.random() * Math.PI*2; let p = Math.random() * Math.PI;
+                        let hp = new THREE.Vector3(Math.sin(p)*Math.cos(t)*r, Math.sin(p)*Math.sin(t)*r, Math.cos(p)*r);
+                        hp.applyMatrix4(activeGroup.matrixWorld);
+                        explodeWeldEffects(hp);
+                    }
+                    weldFlash.position.set(0,0,0); weldFlash.intensity = 30; 
+                }
+                lastFloorIndex = currentFloor; 
+            } else if (currentFloor < lastFloorIndex) lastFloorIndex = currentFloor; 
+
+            // MATRIX LOOP: Assign visibility, translation & THERMAL COOLING 
+            for (let i = 0; i < steps; i++) {
+                if(!meshes[i]) continue;
+                let piece = meshes[i], delta = currentIndex - i; 
+
+                if(delta <= 0) piece.visible = false;
+                else if(delta >= 1) { 
+                    piece.visible = true; piece.position.copy(piece.userData.target); piece.scale.setScalar(1);
+                    
+                    // --- THE THERMAL GRADIENT ALGORITHM ---
+                    // Calculates how deep inside the mesh the current piece is compared to the active top limit
+                    let layerDepth = currentFloor - i;
+
+                    if (layerDepth === 0) piece.material = matYellow;         // 1st layer: Molten Hot Yellow 
+                    else if (layerDepth === 1) piece.material = matOrange;    // 2nd layer: Sizzling Orange 
+                    else if (layerDepth === 2) piece.material = matRed;       // 3rd layer: Cherry Red 
+                    else piece.material = matCooled;                          // 4th+ layer: Solid Dark Metal 
+                    
+                } 
+                else { 
+                    // Piece is Mid-Air / Flying logic
+                    piece.visible = true; 
+                    let t = Math.sin(delta * Math.PI / 2); let u = 1 - t;
+
+                    let p0 = piece.userData.start, p1 = piece.userData.cp, p2 = piece.userData.target;
+                    piece.position.set( u*u*p0.x + 2*u*t*p1.x + t*t*p2.x, u*u*p0.y + 2*u*t*p1.y + t*t*p2.y, u*u*p0.z + 2*u*t*p1.z + t*t*p2.z );
+                    piece.scale.setScalar(0.2 + (0.8 * t)); 
+                    
+                    // Flying objects remain molten yellow
+                    piece.material = matYellow; 
+
+                    if(delta > 0.1 && delta < 0.9) emitSweepTrail(piece.position); 
+                }
+            }
+
+            // Flush Particles Native Engine Updates
+            updateParticleSystem(sparks, (s, i, x3) => {
+                s.life[i] -= 0.04; s.vel[i].y -= 0.05; 
+                s.col[x3+1] *= 0.9; s.col[x3+2] *= 0.8; 
+            });
+
+            updateParticleSystem(trails, (s, i, x3) => {
+                s.life[i] -= 0.03; s.col[x3] *= 0.92; s.col[x3+1] *= 0.92; s.col[x3+2] *= 0.92; 
+            });
+
+            updateParticleSystem(molten, (s, i, x3) => {
+                s.life[i] -= 0.015; s.vel[i].y -= 0.02; 
+                s.col[x3] *= 0.96; s.col[x3+1] *= 0.90; s.col[x3+2] *= 0.90; 
+            });
+
+            updateParticleSystem(smoke, (s, i, x3) => {
+                s.life[i] -= 0.01; s.vel[i].x += (Math.random()-0.5)*0.01; s.vel[i].z += (Math.random()-0.5)*0.01; 
+                let f = s.life[i]; s.col[x3]=f*0.6; s.col[x3+1]=f*0.6; s.col[x3+2]=f*0.6;  
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        function updateParticleSystem(sys, rulesFunc) {
+            let active = false;
+            for(let i=0; i<sys.max; i++) {
+                if(sys.life[i] > 0) {
+                    active = true; let x3 = i * 3;
+                    sys.pos[x3] += sys.vel[i].x; sys.pos[x3+1] += sys.vel[i].y; sys.pos[x3+2] += sys.vel[i].z;
+                    rulesFunc(sys, i, x3); 
+                } else if (sys.life[i] > -1) { sys.pos[i*3+1] = -9999; sys.life[i] = -2; active = true;} 
+            }
+            if(active) { sys.geo.attributes.position.needsUpdate = true; sys.geo.attributes.color.needsUpdate = true; }
+        }
+    </script>
+</body>
+</html>
